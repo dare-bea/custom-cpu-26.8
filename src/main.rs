@@ -1,0 +1,28 @@
+use std::error::Error;
+
+const SHOW_DISASSEMBLY: bool = false;
+const ROM: &'static [u8] = {
+    b"\xF0\xF0\x08\x80\x71\x5f\x80\x42\x34\x0f\x00\x94\x8f\xa1\x0a\x5f\x80\x2f\xa1\x05\x08\x80\x4c\xaf\x03\x08\x80\x71\x5f\x80\x20\xff\x34\x0f\x00\x94\x8f\xa1\x07\x64\x7f\x80\x88\x82\xaf\xf2\xdf\x24\x7f\x80\x35\x0f\x00\x94\xb5\xa8\x08\x94\x8f\xa1\x04\x88\x82\xaf\xee\xdf\x34\x0f\x00\x94\x8f\x88\x82\xa9\xf7\xdf\x54\x68\x69\x73\x20\x70\x72\x6f\x67\x72\x61\x6d\x20\x69\x73\x20\x70\x61\x73\x73\x77\x6f\x72\x64\x20\x70\x72\x6f\x74\x65\x63\x74\x65\x64\x2e\x0a\xff\x43\x6f\x6e\x67\x72\x61\x74\x75\x6c\x61\x74\x69\x6f\x6e\x73\x21\x0a\xff\x70\x61\x73\x73\x77\x6f\x72\x64\x0a\xff"
+};
+
+use cpu4::{register::WordRegister, system::System};
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let mut system = System::new(Box::from(ROM))?;
+    while system.is_running() {
+        let pc = system.get_regw(WordRegister::PC);
+        match system.step() {
+            Ok(opcode) => {
+                if SHOW_DISASSEMBLY {
+                    eprintln!("{:x}: {}", pc, opcode)
+                }
+            }
+            Err(e) => {
+                eprintln!("{:x}: {:x?}", pc, (0..4).map(|x| system.get_memb(pc.wrapping_add(x))).collect::<Result<Vec<u8>, _>>()?);
+                return Err(e.into());
+            }
+        };
+        // std::thread::sleep(std::time::Duration::from_millis(500));
+    }
+    Ok(())
+}
