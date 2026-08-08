@@ -105,7 +105,7 @@ impl System {
         self.set_regw(
             FL,
             (flags & !15)
-                | (u16::from(zf) << 0)
+                | u16::from(zf)
                 | (u16::from(cf) << 1)
                 | (u16::from(sf) << 2)
                 | (u16::from(of) << 3),
@@ -185,7 +185,7 @@ impl System {
         self.set_regw(
             FL,
             (flags & !15)
-                | (u16::from(zf) << 0)
+                | u16::from(zf)
                 | (u16::from(cf) << 1)
                 | (u16::from(sf) << 2)
                 | (u16::from(of) << 3),
@@ -240,7 +240,7 @@ impl System {
         self.set_regw(
             FL,
             (flags & !15)
-                | (u16::from(zf) << 0)
+                | u16::from(zf)
                 | (u16::from(cf) << 1)
                 | (u16::from(sf) << 2)
                 | (u16::from(of) << 3),
@@ -299,7 +299,7 @@ impl System {
         self.set_regw(
             FL,
             (flags & !15)
-                | (u16::from(zf) << 0)
+                | u16::from(zf)
                 | (u16::from(cf) << 1)
                 | (u16::from(sf) << 2)
                 | (u16::from(of) << 3),

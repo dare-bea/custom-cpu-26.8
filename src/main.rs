@@ -269,7 +269,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                             .map(|x| system.get_memb(pc.wrapping_add(x)))
                             .collect::<Result<Vec<u8>, _>>()?
                     );
-                    return Err(e.into());
+                    return Err(e);
                 }
             };
             // std::thread::sleep(std::time::Duration::from_millis(500));
