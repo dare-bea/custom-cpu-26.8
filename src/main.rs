@@ -271,48 +271,48 @@ fn main() -> Result<(), Box<dyn Error>> {
     })();
     if args.debug_registers {
         print!(
-            "HA = 0x{0:04x} ({0:5}) |   ",
+            "| HA = {0:5} (0x{0:04x}) |   ",
             system.get_regw(WordRegister::HA)
         );
         print!(
-            "H = 0x{0:02x} ({0:3})   |   ",
+            "H = {0:3} (0x{0:02x})   |   ",
             system.get_regb(ByteRegister::H)
         );
-        println!("A = 0x{0:02x} ({0:3})", system.get_regb(ByteRegister::A));
+        println!("A = {0:3} (0x{0:02x})   |", system.get_regb(ByteRegister::A));
         print!(
-            "BC = 0x{0:04x} ({0:5}) |   ",
+            "| BC = {0:5} (0x{0:04x}) |   ",
             system.get_regw(WordRegister::BC)
         );
         print!(
-            "B = 0x{0:02x} ({0:3})   |   ",
+            "B = {0:3} (0x{0:02x})   |   ",
             system.get_regb(ByteRegister::B)
         );
-        println!("C = 0x{0:02x} ({0:3})", system.get_regb(ByteRegister::C));
+        println!("C = {0:3} (0x{0:02x})   |", system.get_regb(ByteRegister::C));
         print!(
-            "XL = 0x{0:04x} ({0:5}) |   ",
+            "| XL = {0:5} (0x{0:04x}) |   ",
             system.get_regw(WordRegister::XL)
         );
         print!(
-            "X = 0x{0:02x} ({0:3})   |   ",
+            "X = {0:3} (0x{0:02x})   |   ",
             system.get_regb(ByteRegister::X)
         );
-        println!("L = 0x{0:02x} ({0:3})", system.get_regb(ByteRegister::L));
+        println!("L = {0:3} (0x{0:02x})   |", system.get_regb(ByteRegister::L));
         print!(
-            "MN = 0x{0:04x} ({0:5}) |   ",
+            "| MN = {0:5} (0x{0:04x}) |   ",
             system.get_regw(WordRegister::MN)
         );
         print!(
-            "M = 0x{0:02x} ({0:3})   |   ",
+            "M = {0:3} (0x{0:02x})   |   ",
             system.get_regb(ByteRegister::M)
         );
-        println!("N = 0x{0:02x} ({0:3})", system.get_regb(ByteRegister::N));
+        println!("N = {0:3} (0x{0:02x})   |", system.get_regb(ByteRegister::N));
         print!(
-            "R4 = 0x{0:04x} ({0:5}) | ",
+            "| R4 = {0:5} (0x{0:04x}) | ",
             system.get_regw(WordRegister::R4)
         );
         print!("SP = 0x{0:04x} | ", system.get_regw(WordRegister::SP));
         print!("FL = 0x{0:04x} | ", system.get_regw(WordRegister::FL));
-        println!("PC = 0x{0:04x}", system.get_regw(WordRegister::PC));
+        println!("PC = 0x{0:04x} |", system.get_regw(WordRegister::PC));
     }
     ret_val
 }
