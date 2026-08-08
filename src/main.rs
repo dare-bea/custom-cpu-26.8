@@ -126,112 +126,100 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut system = System::new(Box::from(rom))?;
 
     {
-        match args.reg_ha {
-            Some(value) => {
-                if args.reg_h.is_some() {
-                    return Err(CannotInitalizeByteRegisterAndRegisterPair(
-                        ByteRegister::H,
-                        WordRegister::HA,
-                    )
-                    .into());
-                }
-                if args.reg_a.is_some() {
-                    return Err(CannotInitalizeByteRegisterAndRegisterPair(
-                        ByteRegister::A,
-                        WordRegister::HA,
-                    )
-                    .into());
-                }
-                system.set_regw(WordRegister::HA, value);
+        if let Some(value) = args.reg_ha {
+            if args.reg_h.is_some() {
+                return Err(CannotInitalizeByteRegisterAndRegisterPair(
+                    ByteRegister::H,
+                    WordRegister::HA,
+                )
+                .into());
             }
-            None => {
-                if let Some(value) = args.reg_h {
-                    system.set_regb(ByteRegister::H, value);
-                }
-                if let Some(value) = args.reg_a {
-                    system.set_regb(ByteRegister::A, value);
-                }
+            if args.reg_a.is_some() {
+                return Err(CannotInitalizeByteRegisterAndRegisterPair(
+                    ByteRegister::A,
+                    WordRegister::HA,
+                )
+                .into());
+            }
+            system.set_regw(WordRegister::HA, value);
+        } else {
+            if let Some(value) = args.reg_h {
+                system.set_regb(ByteRegister::H, value);
+            }
+            if let Some(value) = args.reg_a {
+                system.set_regb(ByteRegister::A, value);
             }
         }
-        match args.reg_bc {
-            Some(value) => {
-                if args.reg_b.is_some() {
-                    return Err(CannotInitalizeByteRegisterAndRegisterPair(
-                        ByteRegister::B,
-                        WordRegister::BC,
-                    )
-                    .into());
-                }
-                if args.reg_c.is_some() {
-                    return Err(CannotInitalizeByteRegisterAndRegisterPair(
-                        ByteRegister::C,
-                        WordRegister::BC,
-                    )
-                    .into());
-                }
-                system.set_regw(WordRegister::BC, value);
+        if let Some(value) = args.reg_bc {
+            if args.reg_b.is_some() {
+                return Err(CannotInitalizeByteRegisterAndRegisterPair(
+                    ByteRegister::B,
+                    WordRegister::BC,
+                )
+                .into());
             }
-            None => {
-                if let Some(value) = args.reg_b {
-                    system.set_regb(ByteRegister::B, value);
-                }
-                if let Some(value) = args.reg_c {
-                    system.set_regb(ByteRegister::C, value);
-                }
+            if args.reg_c.is_some() {
+                return Err(CannotInitalizeByteRegisterAndRegisterPair(
+                    ByteRegister::C,
+                    WordRegister::BC,
+                )
+                .into());
+            }
+            system.set_regw(WordRegister::BC, value);
+        } else {
+            if let Some(value) = args.reg_b {
+                system.set_regb(ByteRegister::B, value);
+            }
+            if let Some(value) = args.reg_c {
+                system.set_regb(ByteRegister::C, value);
             }
         }
-        match args.reg_xl {
-            Some(value) => {
-                if args.reg_x.is_some() {
-                    return Err(CannotInitalizeByteRegisterAndRegisterPair(
-                        ByteRegister::X,
-                        WordRegister::XL,
-                    )
-                    .into());
-                }
-                if args.reg_l.is_some() {
-                    return Err(CannotInitalizeByteRegisterAndRegisterPair(
-                        ByteRegister::L,
-                        WordRegister::XL,
-                    )
-                    .into());
-                }
-                system.set_regw(WordRegister::XL, value);
+        if let Some(value) = args.reg_xl {
+            if args.reg_x.is_some() {
+                return Err(CannotInitalizeByteRegisterAndRegisterPair(
+                    ByteRegister::X,
+                    WordRegister::XL,
+                )
+                .into());
             }
-            None => {
-                if let Some(value) = args.reg_x {
-                    system.set_regb(ByteRegister::X, value);
-                }
-                if let Some(value) = args.reg_l {
-                    system.set_regb(ByteRegister::L, value);
-                }
+            if args.reg_l.is_some() {
+                return Err(CannotInitalizeByteRegisterAndRegisterPair(
+                    ByteRegister::L,
+                    WordRegister::XL,
+                )
+                .into());
+            }
+            system.set_regw(WordRegister::XL, value);
+        } else {
+            if let Some(value) = args.reg_x {
+                system.set_regb(ByteRegister::X, value);
+            }
+            if let Some(value) = args.reg_l {
+                system.set_regb(ByteRegister::L, value);
             }
         }
-        match args.reg_mn {
-            Some(value) => {
-                if args.reg_m.is_some() {
-                    return Err(CannotInitalizeByteRegisterAndRegisterPair(
-                        ByteRegister::M,
-                        WordRegister::MN,
-                    )
-                    .into());
-                }
-                if args.reg_n.is_some() {
-                    return Err(CannotInitalizeByteRegisterAndRegisterPair(
-                        ByteRegister::N,
-                        WordRegister::MN,
-                    )
-                    .into());
-                }
-                system.set_regw(WordRegister::MN, value);
+        if let Some(value) = args.reg_mn {
+            if args.reg_m.is_some() {
+                return Err(CannotInitalizeByteRegisterAndRegisterPair(
+                    ByteRegister::M,
+                    WordRegister::MN,
+                )
+                .into());
             }
-            None => {
-                if let Some(value) = args.reg_m {
-                    system.set_regb(ByteRegister::M, value);
-                }
-                if let Some(value) = args.reg_n {
-                    system.set_regb(ByteRegister::N, value);
-                }
+            if args.reg_n.is_some() {
+                return Err(CannotInitalizeByteRegisterAndRegisterPair(
+                    ByteRegister::N,
+                    WordRegister::MN,
+                )
+                .into());
+            }
+            system.set_regw(WordRegister::MN, value);
+        } else {
+            if let Some(value) = args.reg_m {
+                system.set_regb(ByteRegister::M, value);
+            }
+            if let Some(value) = args.reg_n {
+                system.set_regb(ByteRegister::N, value);
             }
         }
         if let Some(value) = args.reg_r4 {
@@ -257,7 +245,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             match system.step() {
                 Ok(opcode) => {
                     if args.disassembly {
-                        eprintln!("{:x}: {}", pc, opcode)
+                        eprintln!("{pc:x}: {opcode}");
                     }
                 }
                 Err(e) if matches!(e.downcast_ref(), Some(system::SystemError::Halted)) => break,
@@ -271,7 +259,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     );
                     return Err(e);
                 }
-            };
+            }
             // std::thread::sleep(std::time::Duration::from_millis(500));
         }
         Ok(())

@@ -101,6 +101,7 @@ impl System {
     }
 
     #[inline]
+    #[must_use]
     pub fn ram(&self) -> &[u8] {
         &self.ram
     }
@@ -111,6 +112,7 @@ impl System {
     }
 
     #[inline]
+    #[must_use]
     pub fn rom(&self) -> &[u8] {
         &self.rom
     }
@@ -121,6 +123,7 @@ impl System {
     }
 
     #[inline]
+    #[must_use]
     pub fn is_halted(&self) -> bool {
         self.reg_fl & (1 << 15) != 0
     }
@@ -133,6 +136,7 @@ impl System {
 
 impl System {
     #[inline]
+    #[must_use]
     pub fn get_regb(&self, reg: ByteRegister) -> u8 {
         match reg {
             ByteRegister::H => self.reg_h,
@@ -156,9 +160,10 @@ impl System {
             ByteRegister::L => self.reg_l = value,
             ByteRegister::M => self.reg_m = value,
             ByteRegister::N => self.reg_n = value,
-        };
+        }
     }
     #[inline]
+    #[must_use]
     pub fn get_regw(&self, reg: WordRegister) -> u16 {
         match reg {
             WordRegister::HA => u16::from_be_bytes([self.reg_h, self.reg_a]),
@@ -182,7 +187,7 @@ impl System {
             WordRegister::SP => self.reg_sp = value,
             WordRegister::FL => self.reg_fl = value,
             WordRegister::PC => self.reg_pc = value,
-        };
+        }
     }
 }
 
@@ -211,7 +216,7 @@ impl System {
             }
             index @ ..RAM_SIZE => self.ram[index] = value,
             RAM_SIZE.. => return Err(SystemError::WriteToRom.into()),
-        };
+        }
         Ok(())
     }
     #[inline]

@@ -7,6 +7,7 @@ use crate::system::{SP_START, System, SystemError};
 
 impl System {
     #[inline]
+    #[must_use]
     pub fn condition(&self, cc: ConditionCode) -> bool {
         let flags = self.get_regw(WordRegister::FL);
         match cc {
@@ -34,7 +35,7 @@ impl System {
     }
 
     pub fn alu_binaryb(&mut self, op: AluBinaryOperation, lhs: u8, rhs: u8) -> u8 {
-        use AluBinaryOperation::*;
+        use AluBinaryOperation::{Add, Sub, Adc, Sbb, And, Xor, Bic, Or, Shl, Shr, Sar, Rol, Ror};
         let flags = self.get_regw(FL);
         let (value, cf, of) = match op {
             Add => {
@@ -114,7 +115,7 @@ impl System {
     }
 
     pub fn alu_binaryw(&mut self, op: AluBinaryOperation, lhs: u16, rhs: u16) -> u16 {
-        use AluBinaryOperation::*;
+        use AluBinaryOperation::{Add, Sub, Adc, Sbb, And, Xor, Bic, Or, Shl, Shr, Sar, Rol, Ror};
         let flags = self.get_regw(FL);
         let (value, cf, of) = match op {
             Add => {
@@ -194,7 +195,7 @@ impl System {
     }
 
     pub fn alu_unaryb(&mut self, op: AluUnaryOperation, value: u8) -> u8 {
-        use AluUnaryOperation::*;
+        use AluUnaryOperation::{Neg, Not, Inc, Dec, Abs, Sgxt, Swap, Popcnt, Rcl, Rcr, Zero};
         let flags = self.get_regw(FL);
         let (result, cf, of) = match op {
             Neg => {
@@ -249,7 +250,7 @@ impl System {
     }
 
     pub fn alu_unaryw(&mut self, op: AluUnaryOperation, value: u16) -> u16 {
-        use AluUnaryOperation::*;
+        use AluUnaryOperation::{Neg, Not, Inc, Dec, Abs, Sgxt, Swap, Popcnt, Rcl, Rcr, Zero};
         let flags = self.get_regw(FL);
         let (result, cf, of) = match op {
             Neg => {
@@ -321,9 +322,8 @@ impl System {
                 Err(e) => {
                     if let Some(SystemError::ReadOutOfRomBounds) = e.downcast_ref() {
                         break;
-                    } else {
-                        return Err(e);
                     }
+                    return Err(e);
                 }
             }
         }
@@ -337,7 +337,7 @@ impl System {
     }
 
     pub fn run_instruction(&mut self, opcode: Opcode) -> Result<(), Box<dyn Error>> {
-        use Opcode::*;
+        use Opcode::{MovRIB, MovRIW, MovCcRRB, MovCcRRW, XchCcRRB, XchCcRRW, MovRAB, MovRAW, MovCcROB, MovCcROW, LeaCcROB, LeaCcROW, JmpCcA, CallCcA, MovARB, MovARW, MovCcORB, MovCcORW, AlubRRB, AlubRRW, AlubRIB, AlubRIW, AluuRB, AluuRW, CpAlubRRB, CpAlubRRW, CpAlubRIB, CpAlubRIW, CpAluuRB, CpAluuRW, JrCcX, PushRB, PushRW, PopRB, PopRW, ClbRIB, ClbRIW, ClbRRB, ClbRRW, StbRIB, StbRIW, StbRRB, StbRRW, TgbRIB, TgbRIW, TgbRRB, TgbRRW, TbitRIB, TbitRIW, TbitRRB, TbitRRW, Nop, Halt};
 
         match opcode {
             MovRIB(dst, imm) => {
@@ -349,13 +349,13 @@ impl System {
 
             MovCcRRB(cc, dst, src) => {
                 if self.condition(cc) {
-                    self.set_regb(dst, self.get_regb(src))
-                };
+                    self.set_regb(dst, self.get_regb(src));
+                }
             }
             MovCcRRW(cc, dst, src) => {
                 if self.condition(cc) {
-                    self.set_regw(dst, self.get_regw(src))
-                };
+                    self.set_regw(dst, self.get_regw(src));
+                }
             }
             XchCcRRB(cc, dst, src) => {
                 if self.condition(cc) {
@@ -386,35 +386,35 @@ impl System {
                     self.set_regb(
                         dst,
                         self.get_memb(self.get_regw(base).wrapping_add_signed(offset.into()))?,
-                    )
-                };
+                    );
+                }
             }
             MovCcROW(cc, dst, offset, base) => {
                 if self.condition(cc) {
                     self.set_regw(
                         dst,
                         self.get_memw(self.get_regw(base).wrapping_add_signed(offset.into()))?,
-                    )
-                };
+                    );
+                }
             }
             LeaCcROB(cc, dst, offset, base) => {
                 if self.condition(cc) {
                     self.set_regb(
                         dst,
                         self.get_regw(base).wrapping_add_signed(offset.into()) as u8,
-                    )
-                };
+                    );
+                }
             }
             LeaCcROW(cc, dst, offset, base) => {
                 if self.condition(cc) {
-                    self.set_regw(dst, self.get_regw(base).wrapping_add_signed(offset.into()))
-                };
+                    self.set_regw(dst, self.get_regw(base).wrapping_add_signed(offset.into()));
+                }
             }
 
             JmpCcA(cc, addr) => {
                 if self.condition(cc) {
-                    self.set_regw(PC, addr)
-                };
+                    self.set_regw(PC, addr);
+                }
             }
             CallCcA(cc, addr) => {
                 if self.condition(cc) {
@@ -422,7 +422,7 @@ impl System {
                     self.set_memw(sp, self.get_regw(PC))?;
                     self.set_regw(SP, sp);
                     self.set_regw(PC, addr);
-                };
+                }
             }
 
             MovARB(addr, src) => {
@@ -437,16 +437,16 @@ impl System {
                     self.set_memb(
                         self.get_regw(base).wrapping_add_signed(offset.into()),
                         self.get_regb(src),
-                    )?
-                };
+                    )?;
+                }
             }
             MovCcORW(cc, offset, base, src) => {
                 if self.condition(cc) {
                     self.set_memw(
                         self.get_regw(base).wrapping_add_signed(offset.into()),
                         self.get_regw(src),
-                    )?
-                };
+                    )?;
+                }
             }
 
             AlubRRB(op, dst, src) => {
@@ -542,7 +542,7 @@ impl System {
             StbRIB(dst, bit) => self.set_regb(dst, self.get_regb(dst) | (1 << (bit & 7))),
             StbRIW(dst, bit) => self.set_regw(dst, self.get_regw(dst) | (1 << (bit & 15))),
             StbRRB(dst, bitreg) => {
-                self.set_regb(dst, self.get_regb(dst) | (1 << (self.get_regb(bitreg) & 7)))
+                self.set_regb(dst, self.get_regb(dst) | (1 << (self.get_regb(bitreg) & 7)));
             }
             StbRRW(dst, bitreg) => self.set_regw(
                 dst,
@@ -552,7 +552,7 @@ impl System {
             TgbRIB(dst, bit) => self.set_regb(dst, self.get_regb(dst) ^ (1 << (bit & 7))),
             TgbRIW(dst, bit) => self.set_regw(dst, self.get_regw(dst) ^ (1 << (bit & 15))),
             TgbRRB(dst, bitreg) => {
-                self.set_regb(dst, self.get_regb(dst) ^ (1 << (self.get_regb(bitreg) & 7)))
+                self.set_regb(dst, self.get_regb(dst) ^ (1 << (self.get_regb(bitreg) & 7)));
             }
             TgbRRW(dst, bitreg) => self.set_regw(
                 dst,
@@ -592,7 +592,7 @@ impl System {
             Halt => {
                 self.halt();
             }
-        };
+        }
         Ok(())
     }
 }

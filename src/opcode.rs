@@ -49,7 +49,7 @@ pub enum ConditionCode {
 impl std::ops::Not for ConditionCode {
     type Output = ConditionCode;
     fn not(self) -> Self::Output {
-        use ConditionCode::*;
+        use ConditionCode::{Z, NZ, C, NC, S, NS, O, NO, LE, G, BE, A, L, GE, False, True};
         match self {
             Z => NZ,
             C => NC,
@@ -208,7 +208,7 @@ impl TryFrom<u8> for AluUnaryOperation {
 
 impl Display for ConditionCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use ConditionCode::*;
+        use ConditionCode::{Z, C, S, O, LE, BE, L, False, NZ, NC, NS, NO, G, A, GE, True};
         f.write_str(match self {
             Z => "Z",
             C => "C",
@@ -232,7 +232,7 @@ impl Display for ConditionCode {
 
 impl Display for AluBinaryOperation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use AluBinaryOperation::*;
+        use AluBinaryOperation::{Add, Sub, Adc, Sbb, And, Xor, Bic, Or, Shl, Shr, Sar, Rol, Ror};
         f.write_str(match self {
             Add => "ADD",
             Sub => "SUB",
@@ -253,7 +253,7 @@ impl Display for AluBinaryOperation {
 
 impl Display for AluUnaryOperation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use AluUnaryOperation::*;
+        use AluUnaryOperation::{Neg, Not, Inc, Dec, Abs, Sgxt, Swap, Popcnt, Rcl, Rcr, Zero};
         f.write_str(match self {
             Neg => "NEG",
             Not => "NOT",
@@ -329,8 +329,9 @@ pub enum Opcode {
 }
 
 impl Opcode {
+    #[must_use]
     pub fn to_vec(self) -> Vec<u8> {
-        use Opcode::*;
+        use Opcode::{MovRIB, MovRIW, MovCcRRB, MovCcRRW, XchCcRRB, XchCcRRW, MovRAB, MovRAW, MovCcROB, MovCcROW, LeaCcROB, LeaCcROW, JmpCcA, CallCcA, MovARB, MovARW, MovCcORB, MovCcORW, AlubRRB, AlubRRW, AlubRIB, AlubRIW, AluuRB, AluuRW, CpAlubRRB, CpAlubRRW, CpAlubRIB, CpAlubRIW, CpAluuRB, CpAluuRW, JrCcX, PushRB, PushRW, PopRB, PopRW, ClbRIB, ClbRIW, ClbRRB, ClbRRW, StbRIB, StbRIW, StbRRB, StbRRW, TgbRIB, TgbRIW, TgbRRB, TgbRRW, TbitRIB, TbitRIW, TbitRRB, TbitRRW, Nop, Halt};
 
         match self {
             MovRIB(dst, imm) => vec![dst as u8, imm],
@@ -495,7 +496,7 @@ impl Opcode {
                 .ok_or(InvalidOpcodeError::UndefinedOpcode)
         };
         let read_u16 = |i: usize| -> Result<u16, InvalidOpcodeError> {
-            Ok(((get(i)? as u16) << 8) | get(i + 1)? as u16)
+            Ok((u16::from(get(i)?) << 8) | u16::from(get(i + 1)?))
         };
 
         let b0 = get(0)?;
@@ -738,28 +739,7 @@ impl Opcode {
                 let is_reg_bit = (b2 >> 3) & 1 == 1;
                 let selector = b2 & 0x3;
 
-                if !is_reg_bit {
-                    let bit = (b2 >> 4) & 0xF;
-                    if l == 0 {
-                        let r = ByteRegister::try_from(ddd)?;
-                        match selector {
-                            0 => Ok(Opcode::ClbRIB(r, bit)),
-                            1 => Ok(Opcode::StbRIB(r, bit)),
-                            2 => Ok(Opcode::TgbRIB(r, bit)),
-                            3 => Ok(Opcode::TbitRIB(r, bit)),
-                            _ => unreachable!(),
-                        }
-                    } else {
-                        let r = WordRegister::try_from(ddd)?;
-                        match selector {
-                            0 => Ok(Opcode::ClbRIW(r, bit)),
-                            1 => Ok(Opcode::StbRIW(r, bit)),
-                            2 => Ok(Opcode::TgbRIW(r, bit)),
-                            3 => Ok(Opcode::TbitRIW(r, bit)),
-                            _ => unreachable!(),
-                        }
-                    }
-                } else {
+                if is_reg_bit {
                     let bitreg = ByteRegister::try_from((b2 >> 5) & 0x7)?;
                     if l == 0 {
                         let r = ByteRegister::try_from(ddd)?;
@@ -780,6 +760,27 @@ impl Opcode {
                             _ => unreachable!(),
                         }
                     }
+                } else {
+                    let bit = (b2 >> 4) & 0xF;
+                    if l == 0 {
+                        let r = ByteRegister::try_from(ddd)?;
+                        match selector {
+                            0 => Ok(Opcode::ClbRIB(r, bit)),
+                            1 => Ok(Opcode::StbRIB(r, bit)),
+                            2 => Ok(Opcode::TgbRIB(r, bit)),
+                            3 => Ok(Opcode::TbitRIB(r, bit)),
+                            _ => unreachable!(),
+                        }
+                    } else {
+                        let r = WordRegister::try_from(ddd)?;
+                        match selector {
+                            0 => Ok(Opcode::ClbRIW(r, bit)),
+                            1 => Ok(Opcode::StbRIW(r, bit)),
+                            2 => Ok(Opcode::TgbRIW(r, bit)),
+                            3 => Ok(Opcode::TbitRIW(r, bit)),
+                            _ => unreachable!(),
+                        }
+                    }
                 }
             }
 
@@ -797,7 +798,7 @@ impl Opcode {
 
 impl Display for Opcode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use Opcode::*;
+        use Opcode::{MovRIB, MovRIW, MovCcRRB, MovCcRRW, XchCcRRB, XchCcRRW, MovRAB, MovRAW, MovCcROB, MovCcROW, LeaCcROB, LeaCcROW, JmpCcA, CallCcA, MovARB, MovARW, MovCcORB, MovCcORW, AlubRRB, AlubRRW, AlubRIB, AlubRIW, AluuRB, AluuRW, CpAlubRRB, CpAlubRRW, CpAlubRIB, CpAlubRIW, CpAluuRB, CpAluuRW, JrCcX, PushRB, PushRW, PopRB, PopRW, ClbRIB, ClbRIW, ClbRRB, ClbRRW, StbRIB, StbRIW, StbRRB, StbRRW, TgbRIB, TgbRIW, TgbRRB, TgbRRW, TbitRIB, TbitRIW, TbitRRB, TbitRRW, Nop, Halt};
         match self {
             MovRIB(dst, imm) => {
                 write!(f, "MOV %{dst}, ${imm:#x}")
