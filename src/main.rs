@@ -229,7 +229,7 @@ fn system_from_args(rom: &[u8], args: &Args) -> Result<System, Box<dyn Error>> {
     if let Some(value) = args.reg_pc {
         system.set_regw(WordRegister::PC, value);
     }
-    return Ok(system);
+    Ok(system)
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
