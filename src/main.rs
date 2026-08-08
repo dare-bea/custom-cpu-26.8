@@ -119,6 +119,7 @@ impl Display for CannotInitalizeByteRegisterAndRegisterPair {
 
 impl Error for CannotInitalizeByteRegisterAndRegisterPair {}
 
+#[allow(clippy::too_many_lines)]
 fn system_from_args(rom: &[u8], args: &Args) -> Result<System, Box<dyn Error>> {
     let mut system = System::new(Box::from(rom))?;
     if let Some(value) = args.reg_ha {

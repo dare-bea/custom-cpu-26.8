@@ -35,7 +35,7 @@ impl System {
     }
 
     pub fn alu_binaryb(&mut self, op: AluBinaryOperation, lhs: u8, rhs: u8) -> u8 {
-        use AluBinaryOperation::{Add, Sub, Adc, Sbb, And, Xor, Bic, Or, Shl, Shr, Sar, Rol, Ror};
+        use AluBinaryOperation::{Adc, Add, And, Bic, Or, Rol, Ror, Sar, Sbb, Shl, Shr, Sub, Xor};
         let flags = self.get_regw(FL);
         let (value, cf, of) = match op {
             Add => {
@@ -115,7 +115,7 @@ impl System {
     }
 
     pub fn alu_binaryw(&mut self, op: AluBinaryOperation, lhs: u16, rhs: u16) -> u16 {
-        use AluBinaryOperation::{Add, Sub, Adc, Sbb, And, Xor, Bic, Or, Shl, Shr, Sar, Rol, Ror};
+        use AluBinaryOperation::{Adc, Add, And, Bic, Or, Rol, Ror, Sar, Sbb, Shl, Shr, Sub, Xor};
         let flags = self.get_regw(FL);
         let (value, cf, of) = match op {
             Add => {
@@ -195,7 +195,7 @@ impl System {
     }
 
     pub fn alu_unaryb(&mut self, op: AluUnaryOperation, value: u8) -> u8 {
-        use AluUnaryOperation::{Neg, Not, Inc, Dec, Abs, Sgxt, Swap, Popcnt, Rcl, Rcr, Zero};
+        use AluUnaryOperation::{Abs, Dec, Inc, Neg, Not, Popcnt, Rcl, Rcr, Sgxt, Swap, Zero};
         let flags = self.get_regw(FL);
         let (result, cf, of) = match op {
             Neg => {
@@ -250,7 +250,7 @@ impl System {
     }
 
     pub fn alu_unaryw(&mut self, op: AluUnaryOperation, value: u16) -> u16 {
-        use AluUnaryOperation::{Neg, Not, Inc, Dec, Abs, Sgxt, Swap, Popcnt, Rcl, Rcr, Zero};
+        use AluUnaryOperation::{Abs, Dec, Inc, Neg, Not, Popcnt, Rcl, Rcr, Sgxt, Swap, Zero};
         let flags = self.get_regw(FL);
         let (result, cf, of) = match op {
             Neg => {
@@ -337,7 +337,14 @@ impl System {
     }
 
     pub fn run_instruction(&mut self, opcode: Opcode) -> Result<(), Box<dyn Error>> {
-        use Opcode::{MovRIB, MovRIW, MovCcRRB, MovCcRRW, XchCcRRB, XchCcRRW, MovRAB, MovRAW, MovCcROB, MovCcROW, LeaCcROB, LeaCcROW, JmpCcA, CallCcA, MovARB, MovARW, MovCcORB, MovCcORW, AlubRRB, AlubRRW, AlubRIB, AlubRIW, AluuRB, AluuRW, CpAlubRRB, CpAlubRRW, CpAlubRIB, CpAlubRIW, CpAluuRB, CpAluuRW, JrCcX, PushRB, PushRW, PopRB, PopRW, ClbRIB, ClbRIW, ClbRRB, ClbRRW, StbRIB, StbRIW, StbRRB, StbRRW, TgbRIB, TgbRIW, TgbRRB, TgbRRW, TbitRIB, TbitRIW, TbitRRB, TbitRRW, Nop, Halt};
+        use Opcode::{
+            AlubRIB, AlubRIW, AlubRRB, AlubRRW, AluuRB, AluuRW, CallCcA, ClbRIB, ClbRIW, ClbRRB,
+            ClbRRW, CpAlubRIB, CpAlubRIW, CpAlubRRB, CpAlubRRW, CpAluuRB, CpAluuRW, Halt, JmpCcA,
+            JrCcX, LeaCcROB, LeaCcROW, MovARB, MovARW, MovCcORB, MovCcORW, MovCcROB, MovCcROW,
+            MovCcRRB, MovCcRRW, MovRAB, MovRAW, MovRIB, MovRIW, Nop, PopRB, PopRW, PushRB, PushRW,
+            StbRIB, StbRIW, StbRRB, StbRRW, TbitRIB, TbitRIW, TbitRRB, TbitRRW, TgbRIB, TgbRIW,
+            TgbRRB, TgbRRW, XchCcRRB, XchCcRRW,
+        };
 
         match opcode {
             MovRIB(dst, imm) => {

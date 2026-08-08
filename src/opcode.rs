@@ -49,7 +49,7 @@ pub enum ConditionCode {
 impl std::ops::Not for ConditionCode {
     type Output = ConditionCode;
     fn not(self) -> Self::Output {
-        use ConditionCode::{Z, NZ, C, NC, S, NS, O, NO, LE, G, BE, A, L, GE, False, True};
+        use ConditionCode::{A, BE, C, False, G, GE, L, LE, NC, NO, NS, NZ, O, S, True, Z};
         match self {
             Z => NZ,
             C => NC,
@@ -208,7 +208,7 @@ impl TryFrom<u8> for AluUnaryOperation {
 
 impl Display for ConditionCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use ConditionCode::{Z, C, S, O, LE, BE, L, False, NZ, NC, NS, NO, G, A, GE, True};
+        use ConditionCode::{A, BE, C, False, G, GE, L, LE, NC, NO, NS, NZ, O, S, True, Z};
         f.write_str(match self {
             Z => "Z",
             C => "C",
@@ -232,7 +232,7 @@ impl Display for ConditionCode {
 
 impl Display for AluBinaryOperation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use AluBinaryOperation::{Add, Sub, Adc, Sbb, And, Xor, Bic, Or, Shl, Shr, Sar, Rol, Ror};
+        use AluBinaryOperation::{Adc, Add, And, Bic, Or, Rol, Ror, Sar, Sbb, Shl, Shr, Sub, Xor};
         f.write_str(match self {
             Add => "ADD",
             Sub => "SUB",
@@ -253,7 +253,7 @@ impl Display for AluBinaryOperation {
 
 impl Display for AluUnaryOperation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use AluUnaryOperation::{Neg, Not, Inc, Dec, Abs, Sgxt, Swap, Popcnt, Rcl, Rcr, Zero};
+        use AluUnaryOperation::{Abs, Dec, Inc, Neg, Not, Popcnt, Rcl, Rcr, Sgxt, Swap, Zero};
         f.write_str(match self {
             Neg => "NEG",
             Not => "NOT",
@@ -331,7 +331,14 @@ pub enum Opcode {
 impl Opcode {
     #[must_use]
     pub fn to_vec(self) -> Vec<u8> {
-        use Opcode::{MovRIB, MovRIW, MovCcRRB, MovCcRRW, XchCcRRB, XchCcRRW, MovRAB, MovRAW, MovCcROB, MovCcROW, LeaCcROB, LeaCcROW, JmpCcA, CallCcA, MovARB, MovARW, MovCcORB, MovCcORW, AlubRRB, AlubRRW, AlubRIB, AlubRIW, AluuRB, AluuRW, CpAlubRRB, CpAlubRRW, CpAlubRIB, CpAlubRIW, CpAluuRB, CpAluuRW, JrCcX, PushRB, PushRW, PopRB, PopRW, ClbRIB, ClbRIW, ClbRRB, ClbRRW, StbRIB, StbRIW, StbRRB, StbRRW, TgbRIB, TgbRIW, TgbRRB, TgbRRW, TbitRIB, TbitRIW, TbitRRB, TbitRRW, Nop, Halt};
+        use Opcode::{
+            AlubRIB, AlubRIW, AlubRRB, AlubRRW, AluuRB, AluuRW, CallCcA, ClbRIB, ClbRIW, ClbRRB,
+            ClbRRW, CpAlubRIB, CpAlubRIW, CpAlubRRB, CpAlubRRW, CpAluuRB, CpAluuRW, Halt, JmpCcA,
+            JrCcX, LeaCcROB, LeaCcROW, MovARB, MovARW, MovCcORB, MovCcORW, MovCcROB, MovCcROW,
+            MovCcRRB, MovCcRRW, MovRAB, MovRAW, MovRIB, MovRIW, Nop, PopRB, PopRW, PushRB, PushRW,
+            StbRIB, StbRIW, StbRRB, StbRRW, TbitRIB, TbitRIW, TbitRRB, TbitRRW, TgbRIB, TgbRIW,
+            TgbRRB, TgbRRW, XchCcRRB, XchCcRRW,
+        };
 
         match self {
             MovRIB(dst, imm) => vec![dst as u8, imm],
@@ -798,7 +805,14 @@ impl Opcode {
 
 impl Display for Opcode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use Opcode::{MovRIB, MovRIW, MovCcRRB, MovCcRRW, XchCcRRB, XchCcRRW, MovRAB, MovRAW, MovCcROB, MovCcROW, LeaCcROB, LeaCcROW, JmpCcA, CallCcA, MovARB, MovARW, MovCcORB, MovCcORW, AlubRRB, AlubRRW, AlubRIB, AlubRIW, AluuRB, AluuRW, CpAlubRRB, CpAlubRRW, CpAlubRIB, CpAlubRIW, CpAluuRB, CpAluuRW, JrCcX, PushRB, PushRW, PopRB, PopRW, ClbRIB, ClbRIW, ClbRRB, ClbRRW, StbRIB, StbRIW, StbRRB, StbRRW, TgbRIB, TgbRIW, TgbRRB, TgbRRW, TbitRIB, TbitRIW, TbitRRB, TbitRRW, Nop, Halt};
+        use Opcode::{
+            AlubRIB, AlubRIW, AlubRRB, AlubRRW, AluuRB, AluuRW, CallCcA, ClbRIB, ClbRIW, ClbRRB,
+            ClbRRW, CpAlubRIB, CpAlubRIW, CpAlubRRB, CpAlubRRW, CpAluuRB, CpAluuRW, Halt, JmpCcA,
+            JrCcX, LeaCcROB, LeaCcROW, MovARB, MovARW, MovCcORB, MovCcORW, MovCcROB, MovCcROW,
+            MovCcRRB, MovCcRRW, MovRAB, MovRAW, MovRIB, MovRIW, Nop, PopRB, PopRW, PushRB, PushRW,
+            StbRIB, StbRIW, StbRRB, StbRRW, TbitRIB, TbitRIW, TbitRRB, TbitRRW, TgbRIB, TgbRIW,
+            TgbRRB, TgbRRW, XchCcRRB, XchCcRRW,
+        };
         match self {
             MovRIB(dst, imm) => {
                 write!(f, "MOV %{dst}, ${imm:#x}")
