@@ -228,9 +228,9 @@ impl TryFrom<u8> for AluBinaryOperation {
             7 => AluBinaryOperation::Or,
             8 => AluBinaryOperation::Shl,
             9 => AluBinaryOperation::Shr,
-            10 => AluBinaryOperation::Sar,
-            11 => AluBinaryOperation::Rol,
-            12 => AluBinaryOperation::Ror,
+            11 => AluBinaryOperation::Sar,
+            12 => AluBinaryOperation::Rol,
+            13 => AluBinaryOperation::Ror,
             _ => return Err(InvalidOpcodeError::UndefinedOpcode),
         })
     }

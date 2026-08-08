@@ -263,7 +263,7 @@ impl System {
             index @ ..RAM_SIZE => Ok(self.ram[index]),
             index @ RAM_SIZE.. => self
                 .rom
-                .get(index - RAM_SIZE - usize::from(self.get_memb(0x7FFE)?) * ROM_PAGE_SIZE)
+                .get(index - RAM_SIZE + usize::from(self.get_memb(0x7FFE)?) * ROM_PAGE_SIZE)
                 .copied()
                 .ok_or(SystemError::ReadOutOfRomBounds.into()),
         }
