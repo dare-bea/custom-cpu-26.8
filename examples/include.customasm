@@ -1,0 +1,232 @@
+#subruledef r8
+{
+  h => 0`3
+  a => 1`3
+  b => 2`3
+  c => 3`3
+  x => 4`3
+  l => 5`3
+  m => 6`3
+  n => 7`3
+}
+
+#subruledef r16
+{
+  ha => 0`3
+  bc => 1`3
+  xl => 2`3
+  mn => 3`3
+  r4 => 4`3
+  sp => 5`3
+  fl => 6`3
+  pc => 7`3
+}
+
+#subruledef cond
+{
+  z  => 0`4
+  e  => 0`4
+  c  => 1`4
+  b  => 1`4
+  nae => 1`4
+  s  => 2`4
+  o  => 3`4
+  le => 4`4
+  ng => 4`4
+  be => 5`4
+  na => 5`4
+  l  => 6`4
+  nge => 6`4
+  [false] => 7`4
+  nz => 8`4
+  ne => 8`4
+  nc => 9`4
+  nb => 9`4
+  ae => 9`4
+  ns => 10`4
+  no => 11`4
+  nle => 12`4
+  g => 12`4
+  nbe => 13`4
+  a => 13`4
+  nl  => 14`4
+  ge => 14`4
+  [true] => 15`4
+}
+
+#subruledef flag {
+  zf => 0`4
+  cf => 1`4
+  sf => 2`4
+  of => 3`4
+}
+
+#subruledef aluBinary
+{
+  add => 0`4
+  sub => 1`4
+  adc => 2`4
+  sbb => 3`4
+  and => 4`4
+  xor => 5`4
+  bic => 6`4
+  or  => 7`4
+  shl => 8`4
+  shr => 9`4
+  sar => 11`4
+  rol => 12`4
+  ror => 13`4
+}
+
+#subruledef aluUnary
+{
+  neg => 0`4
+  not => 1`4
+  inc => 2`4
+  dec => 3`4
+  abs => 4`4
+  sgxt => 5`4
+  swap => 6`4
+  popcnt => 7`4
+  rcl => 8`4
+  rcr => 9`4
+  zero => 15`4
+}
+
+#ruledef
+{
+  mov %{dst: r8}, ${src: i8} => 0b0000_0@dst @ src 
+  mov %{dst: r16}, ${src: i16} => 0b0000_1@dst @ src
+  
+  mov %{dst: r8}, %{src: r8} => 0b0001_0@dst @ src@0b0_1111
+  mov{cc: cond} %{dst: r8}, %{src: r8} => 0b0001_0@dst @ src@0b0@cc
+  mov %{dst: r16}, %{src: r16} => 0b0001_1@dst @ src@0b0_1111
+  mov{cc: cond} %{dst: r16}, %{src: r16} => 0b0001_1@dst @ src@0b0@cc
+
+  xch %{dst: r8}, %{src: r8} => 0b0001_0@dst @ src@0b1_1111
+  xch{cc: cond} %{dst: r8}, %{src: r8} => 0b0001_0@dst @ src@0b1@cc
+  xch %{dst: r16}, %{src: r16} => 0b0001_1@dst @ src@0b1_1111
+  xch{cc: cond} %{dst: r16}, %{src: r16} => 0b0001_1@dst @ src@0b1@cc
+
+  mov %{dst: r8}, {src: u16} => 0b0010_0@dst @ src
+  mov %{dst: r16}, {src: u16} => 0b0010_1@dst @ src
+  mov %{dst: r8}, {off: s8}(%{src: r16}) => 0b0011_0@dst @ src@0b0_1111 @ off
+  mov{cc: cond} %{dst: r8}, {off: s8}(%{src: r16}) => 0b0011_0@dst @ src@0b0@cc @ off
+  mov %{dst: r16}, {off: s8}(%{src: r16}) => 0b0011_1@dst @ src@0b0_1111 @ off
+  mov{cc: cond} %{dst: r16}, {off: s8}(%{src: r16}) => 0b0011_1@dst @ src@0b0@cc @ off
+  mov %{dst: r8}, (%{src: r16}) => 0b0011_0@dst @ src@0b0_1111 @ 0`8
+  mov{cc: cond} %{dst: r8}, (%{src: r16}) => 0b0011_0@dst @ src@0b0@cc @ 0`8
+  mov %{dst: r16}, (%{src: r16}) => 0b0011_1@dst @ src@0b0_1111 @ 0`8
+  mov{cc: cond} %{dst: r16}, (%{src: r16}) => 0b0011_1@dst @ src@0b0@cc @ 0`8
+  lea %{dst: r8}, {off: s8}(%{src: r16}) => 0b0011_0@dst @ src@0b1_1111 @ off
+  lea{cc: cond} %{dst: r8}, {off: s8}(%{src: r16}) => 0b0011_0@dst @ src@0b1@cc @ off
+  lea %{dst: r16}, {off: s8}(%{src: r16}) => 0b0011_1@dst @ src@0b1_1111 @ off
+  lea{cc: cond} %{dst: r16}, {off: s8}(%{src: r16}) => 0b0011_1@dst @ src@0b1@cc @ off
+  lea %{dst: r8}, (%{src: r16}) => 0b0011_0@dst @ src@0b1_1111 @ 0`8
+  lea{cc: cond} %{dst: r8}, (%{src: r16}) => 0b0011_0@dst @ src@0b1@cc @ 0`8
+  lea %{dst: r16}, (%{src: r16}) => 0b0011_1@dst @ src@0b1_1111 @ 0`8
+  lea{cc: cond} %{dst: r16}, (%{src: r16}) => 0b0011_1@dst @ src@0b1@cc @ 0`8
+  jmp {off: s8}(%{src: r16}) => 0b0011_1111 @ src@0b1_1111 @ off
+  j{cc: cond} {off: s8}(%{src: r16}) => 0b0011_1111 @ src@0b1@cc @ off
+  jmp (%{src: r16}) => 0b0011_1111 @ src@0b1_1111 @ 0`8
+  j{cc: cond} (%{src: r16}) => 0b0011_1111 @ src@0b1@cc @ 0`8
+
+  jmp {addr: u16} => 0b0100_1111 @ addr
+  j{cc: cond} {addr: u16} => 0b0100@cc @ addr
+
+  call {addr: u16} => 0b0101_1111 @ addr
+  call{cc: cond} {addr: u16} => 0b0101@cc @ addr
+  
+  mov {dst: u16}, %{src: r8} => 0b0110_0@src @ dst
+  mov {dst: u16}, %{src: r16} => 0b0110_1@src @ dst
+  mov {off: s8}(%{dst: r16}), %{src: r8} => 0b0111_0@src @ dst@0b0_1111 @ off
+  mov{cc: cond} {off: s8}(%{dst: r16}), %{src: r8} => 0b0111_0@src @ dst@0b0@cc @ off
+  mov {off: s8}(%{dst: r16}), %{src: r16} => 0b0111_1@src @ dst@0b0_1111 @ off
+  mov{cc: cond} {off: s8}(%{dst: r16}), %{src: r16} => 0b0111_1@src @ dst@0b0@cc @ off
+  mov (%{dst: r16}), %{src: r8} => 0b0111_0@src @ dst@0b0_1111 @ 0`8
+  mov{cc: cond} (%{dst: r16}), %{src: r8} => 0b0111_0@src @ dst@0b0@cc @ 0`8
+  mov (%{dst: r16}), %{src: r16} => 0b0111_1@src @ dst@0b0_1111 @ 0`8
+  mov{cc: cond} (%{dst: r16}), %{src: r16} => 0b0111_1@src @ dst@0b0@cc @ 0`8
+
+  {op: aluBinary} %{dst: r8}, %{src: r8} => 0b1000_0@dst @ src@0b1@op
+  {op: aluBinary} %{dst: r16}, %{src: r16} => 0b1000_1@dst @ src@0b1@op
+  {op: aluBinary} %{dst: r8}, ${src: i8} => 0b1000_0@dst @ 0b0000@op @ src
+  {op: aluBinary} %{dst: r16}, ${src: i16} => 0b1000_1@dst @ 0b0000@op @ src
+  {op: aluUnary} %{dst: r8} => 0b1000_0@dst @ 0b1000@op
+  {op: aluUnary} %{dst: r16} => 0b1000_1@dst @ 0b1000@op
+
+  cp{op: aluBinary} %{dst: r8}, %{src: r8} => 0b1001_0@dst @ src@0b1@op
+  cp{op: aluBinary} %{dst: r16}, %{src: r16} => 0b1001_1@dst @ src@0b1@op
+  cp{op: aluBinary} %{dst: r8}, ${src: i8} => 0b1001_0@dst @ 0b0000@op @ src
+  cp{op: aluBinary} %{dst: r16}, ${src: i16} => 0b1001_1@dst @ 0b0000@op @ src
+  cp{op: aluUnary} %{dst: r8} => 0b1001_0@dst @ 0b1000@op
+  cp{op: aluUnary} %{dst: r16} => 0b1001_1@dst @ 0b1000@op
+
+  cmp %{dst: r8}, %{src: r8} => 0b1001_0@dst @ src@0b1_0001
+  cmp %{dst: r16}, %{src: r16} => 0b1001_1@dst @ src@0b1_0001
+  cmp %{dst: r8}, ${src: i8} => 0b1001_0@dst @ 0b0000_0001 @ src
+  cmp %{dst: r16}, ${src: i16} => 0b1001_1@dst @ 0b0000_0001 @ src
+  test %{dst: r8} => 0b1001_0@dst @ 0b1000_1111
+  test %{dst: r16} => 0b1001_1@dst @ 0b1000_1111
+
+  jr {off: s8} => 0b1010_1111 @ off
+  jr{cc: cond} {off: s8} => 0b1010@cc @ off
+
+  jr {addr: u16} => {
+    off = addr - $ - 2
+    $assert(off <=  0x7f, "branch target is too far")
+    $assert(off >= !0x7f, "branch target is too far")
+    0b1010_1111 @ off`8
+  }
+  jr{cc: cond} {addr: u16} => {
+    off = addr - $ - 2
+    $assert(off <=  0x7f, "branch target is too far")
+    $assert(off >= !0x7f, "branch target is too far")
+    0b1010@cc @ off`8
+  }
+
+  push %{src: r8} => 0b1100_0@src
+  push %{src: r16} => 0b1100_1@src
+
+  pop %{dst: r8} => 0b1101_0@dst
+  pop %{dst: r16} => 0b1101_1@dst
+  ret => 0b1101_1111
+  
+  clb %{dst: r8}, ${bit} => 0b1110_0@dst @ bit`4@0b0000
+  clb %{dst: r16}, ${bit} => 0b1110_1@dst @ bit`4@0b0000
+  clb %fl, ${bit: flag} => 0b1110_1110 @ bit@0b0000
+  stb %{dst: r8}, ${bit} => 0b1110_0@dst @ bit`4@0b0001
+  stb %{dst: r16}, ${bit} => 0b1110_1@dst @ bit`4@0b0001
+  stb %fl, ${bit: flag} => 0b1110_1110 @ bit@0b0001
+  tgb %{dst: r8}, ${bit} => 0b1110_0@dst @ bit`4@0b0010
+  tgb %{dst: r16}, ${bit} => 0b1110_1@dst @ bit`4@0b0010
+  tgb %fl, ${bit: flag} => 0b1110_1110 @ bit@0b0010
+
+  clb %{dst: r8}, %{bit: r8} => 0b1110_0@dst @ bit@0b0_1000
+  clb %{dst: r16}, %{bit: r8} => 0b1110_1@dst @ bit@0b0_1000
+  stb %{dst: r8}, %{bit: r8} => 0b1110_0@dst @ bit@0b0_1001
+  stb %{dst: r16}, %{bit: r8} => 0b1110_1@dst @ bit@0b0_1001
+  tgb %{dst: r8}, %{bit: r8} => 0b1110_0@dst @ bit@0b0_1010
+  tgb %{dst: r16}, %{bit: r8} => 0b1110_1@dst @ bit@0b0_1010
+
+  tbit %{src: r8}, ${bit} => 0b1110_0@src @ bit`4@0b0011
+  tbit %{src: r16}, ${bit} => 0b1110_1@src @ bit`4@0b0011
+  tbit %fl, ${bit: flag} => 0b1110_1110 @ bit@0b0011
+
+  tbit %{src: r8}, %{bit: r8} => 0b1110_0@src @ bit@0b0_1011
+  tbit %{src: r16}, %{bit: r8} => 0b1110_1@src @ bit@0b0_1011
+  
+  nop => 0b1111_0000
+  putc => 0b1111_0001
+  getc => 0b1111_0010
+  halt => 0b1111_1111
+}
+
+#bankdef rom
+{
+  addr = 0x8000
+  size = 0x8000
+  outp = 0
+}
+
+#bank rom

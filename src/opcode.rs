@@ -4,21 +4,46 @@ use std::fmt::Display;
 use crate::register::{ByteRegister, WordRegister};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct InvalidOpcodeError;
+pub enum InvalidOpcodeError {
+    UndefinedByteRegister,
+    UndefinedWordRegister,
+    UndefinedConditionCode,
+    UndefinedOpcode,
+}
 
 impl Display for InvalidOpcodeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("invalid opcode")
+        f.write_str(match self {
+            Self::UndefinedByteRegister => "undefined byte register",
+            Self::UndefinedWordRegister => "undefined word register",
+            Self::UndefinedConditionCode => "undefined condition code",
+            Self::UndefinedOpcode => "undefined opcode",
+        })
     }
 }
 
-impl Error for InvalidOpcodeError { }
+impl Error for InvalidOpcodeError {}
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(u8)]
 pub enum ConditionCode {
-    Z, C, S, O, LE, BE, L, False,
-    NZ, NC, NS, NO, G, A, GE, #[default] True,
+    Z,
+    C,
+    S,
+    O,
+    LE,
+    BE,
+    L,
+    False,
+    NZ,
+    NC,
+    NS,
+    NO,
+    G,
+    A,
+    GE,
+    #[default]
+    True,
 }
 
 impl std::ops::Not for ConditionCode {
@@ -26,8 +51,22 @@ impl std::ops::Not for ConditionCode {
     fn not(self) -> Self::Output {
         use ConditionCode::*;
         match self {
-            Z => NZ, C => NC, S => NS, O => NO, LE => G, BE => A, L => GE, False => True,
-            NZ => Z, NC => C, NS => S, NO => O, G => LE, A => BE, GE => L, True => False,
+            Z => NZ,
+            C => NC,
+            S => NS,
+            O => NO,
+            LE => G,
+            BE => A,
+            L => GE,
+            False => True,
+            NZ => Z,
+            NC => C,
+            NS => S,
+            NO => O,
+            G => LE,
+            A => BE,
+            GE => L,
+            True => False,
         }
     }
 }
@@ -35,52 +74,135 @@ impl std::ops::Not for ConditionCode {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(u8)]
 pub enum AluBinaryOperation {
-    Add, Sub, Adc, Sbb, And, Xor, Bic, Or, Shl, Shr, Sar = 11, Rol, Ror
+    Add,
+    Sub,
+    Adc,
+    Sbb,
+    And,
+    Xor,
+    Bic,
+    Or,
+    Shl,
+    Shr,
+    Sar = 11,
+    Rol,
+    Ror,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(u8)]
 pub enum AluUnaryOperation {
-    Neg, Not, Inc, Dec, Abs, Sgxt, Swap, Popcnt, Rcl, Rcr, Zero = 15,
+    Neg,
+    Not,
+    Inc,
+    Dec,
+    Abs,
+    Sgxt,
+    Swap,
+    Popcnt,
+    Rcl,
+    Rcr,
+    Zero = 15,
 }
 
 impl TryFrom<u8> for ByteRegister {
     type Error = InvalidOpcodeError;
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if value >= 8 {return Err(InvalidOpcodeError)};
-        Ok(unsafe {std::mem::transmute::<u8, Self>(value)})
+        Ok(match value {
+            0 => ByteRegister::H,
+            1 => ByteRegister::A,
+            2 => ByteRegister::B,
+            3 => ByteRegister::C,
+            4 => ByteRegister::X,
+            5 => ByteRegister::L,
+            6 => ByteRegister::M,
+            7 => ByteRegister::N,
+            _ => return Err(InvalidOpcodeError::UndefinedByteRegister),
+        })
     }
 }
 
 impl TryFrom<u8> for WordRegister {
     type Error = InvalidOpcodeError;
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if value >= 8 {return Err(InvalidOpcodeError)};
-        Ok(unsafe {std::mem::transmute::<u8, Self>(value)})
+        Ok(match value {
+            0 => WordRegister::HA,
+            1 => WordRegister::BC,
+            2 => WordRegister::XL,
+            3 => WordRegister::MN,
+            4 => WordRegister::R4,
+            5 => WordRegister::SP,
+            6 => WordRegister::FL,
+            7 => WordRegister::PC,
+            _ => return Err(InvalidOpcodeError::UndefinedWordRegister),
+        })
     }
 }
 
 impl TryFrom<u8> for ConditionCode {
     type Error = InvalidOpcodeError;
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if value >= 16 {return Err(InvalidOpcodeError)};
-        Ok(unsafe {std::mem::transmute::<u8, Self>(value)})
+        Ok(match value {
+            0 => ConditionCode::Z,
+            1 => ConditionCode::C,
+            2 => ConditionCode::S,
+            3 => ConditionCode::O,
+            4 => ConditionCode::LE,
+            5 => ConditionCode::BE,
+            6 => ConditionCode::L,
+            7 => ConditionCode::False,
+            8 => ConditionCode::NZ,
+            9 => ConditionCode::NC,
+            10 => ConditionCode::NS,
+            11 => ConditionCode::NO,
+            12 => ConditionCode::G,
+            13 => ConditionCode::A,
+            14 => ConditionCode::GE,
+            15 => ConditionCode::True,
+            _ => return Err(InvalidOpcodeError::UndefinedConditionCode),
+        })
     }
 }
 
 impl TryFrom<u8> for AluBinaryOperation {
     type Error = InvalidOpcodeError;
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if value >= 16 {return Err(InvalidOpcodeError)};
-        Ok(unsafe {std::mem::transmute::<u8, Self>(value)})
+        Ok(match value {
+            0 => AluBinaryOperation::Add,
+            1 => AluBinaryOperation::Sub,
+            2 => AluBinaryOperation::Adc,
+            3 => AluBinaryOperation::Sbb,
+            4 => AluBinaryOperation::And,
+            5 => AluBinaryOperation::Xor,
+            6 => AluBinaryOperation::Bic,
+            7 => AluBinaryOperation::Or,
+            8 => AluBinaryOperation::Shl,
+            9 => AluBinaryOperation::Shr,
+            10 => AluBinaryOperation::Sar,
+            11 => AluBinaryOperation::Rol,
+            12 => AluBinaryOperation::Ror,
+            _ => return Err(InvalidOpcodeError::UndefinedOpcode),
+        })
     }
 }
 
 impl TryFrom<u8> for AluUnaryOperation {
     type Error = InvalidOpcodeError;
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if value >= 16 {return Err(InvalidOpcodeError)};
-        Ok(unsafe {std::mem::transmute::<u8, Self>(value)})
+        Ok(match value {
+            0 => AluUnaryOperation::Neg,
+            1 => AluUnaryOperation::Not,
+            2 => AluUnaryOperation::Inc,
+            3 => AluUnaryOperation::Dec,
+            4 => AluUnaryOperation::Abs,
+            5 => AluUnaryOperation::Sgxt,
+            6 => AluUnaryOperation::Swap,
+            7 => AluUnaryOperation::Popcnt,
+            8 => AluUnaryOperation::Rcl,
+            9 => AluUnaryOperation::Rcr,
+            15 => AluUnaryOperation::Zero,
+            _ => return Err(InvalidOpcodeError::UndefinedOpcode),
+        })
     }
 }
 
@@ -88,8 +210,22 @@ impl Display for ConditionCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use ConditionCode::*;
         f.write_str(match self {
-            Z  => "Z" , C  => "C" , S  => "S" , O  => "O" , LE => "LE", BE => "BE", L  => "L" , False => "[FALSE]",
-            NZ => "NZ", NC => "NC", NS => "NS", NO => "NO", G  => "G" , A  => "A" , GE => "GE", True  => "",
+            Z => "Z",
+            C => "C",
+            S => "S",
+            O => "O",
+            LE => "LE",
+            BE => "BE",
+            L => "L",
+            False => "[FALSE]",
+            NZ => "NZ",
+            NC => "NC",
+            NS => "NS",
+            NO => "NO",
+            G => "G",
+            A => "A",
+            GE => "GE",
+            True => "",
         })
     }
 }
@@ -98,10 +234,19 @@ impl Display for AluBinaryOperation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use AluBinaryOperation::*;
         f.write_str(match self {
-            Add => "ADD", Sub => "SUB", Adc => "ADC", Sbb => "SBB",
-            And => "AND", Xor => "XOR", Bic => "BIC", Or  => "OR",
-            Shl => "SHL", Shr => "SHR", Sar => "SAR",
-            Rol => "ROL", Ror => "ROR",
+            Add => "ADD",
+            Sub => "SUB",
+            Adc => "ADC",
+            Sbb => "SBB",
+            And => "AND",
+            Xor => "XOR",
+            Bic => "BIC",
+            Or => "OR",
+            Shl => "SHL",
+            Shr => "SHR",
+            Sar => "SAR",
+            Rol => "ROL",
+            Ror => "ROR",
         })
     }
 }
@@ -110,9 +255,17 @@ impl Display for AluUnaryOperation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use AluUnaryOperation::*;
         f.write_str(match self {
-            Neg => "NEG", Not => "NOT", Inc => "INC", Dec => "DEC",
-            Abs => "ABS", Sgxt => "SGXT", Swap => "SWAP", Popcnt => "POPCNT",
-            Rcl => "RCL", Rcr => "RCR", Zero => "ZERO",
+            Neg => "NEG",
+            Not => "NOT",
+            Inc => "INC",
+            Dec => "DEC",
+            Abs => "ABS",
+            Sgxt => "SGXT",
+            Swap => "SWAP",
+            Popcnt => "POPCNT",
+            Rcl => "RCL",
+            Rcr => "RCR",
+            Zero => "ZERO",
         })
     }
 }
@@ -209,16 +362,32 @@ impl Opcode {
             }
 
             MovCcROB(cc, dst, offset, base) => {
-                vec![0x30 | dst as u8, ((base as u8) << 5) | cc as u8, offset as u8]
+                vec![
+                    0x30 | dst as u8,
+                    ((base as u8) << 5) | cc as u8,
+                    offset as u8,
+                ]
             }
             MovCcROW(cc, dst, offset, base) => {
-                vec![0x38 | dst as u8, ((base as u8) << 5) | cc as u8, offset as u8]
+                vec![
+                    0x38 | dst as u8,
+                    ((base as u8) << 5) | cc as u8,
+                    offset as u8,
+                ]
             }
             LeaCcROB(cc, dst, offset, base) => {
-                vec![0x30 | dst as u8, ((base as u8) << 5) | 0x10 | cc as u8, offset as u8]
+                vec![
+                    0x30 | dst as u8,
+                    ((base as u8) << 5) | 0x10 | cc as u8,
+                    offset as u8,
+                ]
             }
             LeaCcROW(cc, dst, offset, base) => {
-                vec![0x38 | dst as u8, ((base as u8) << 5) | 0x10 | cc as u8, offset as u8]
+                vec![
+                    0x38 | dst as u8,
+                    ((base as u8) << 5) | 0x10 | cc as u8,
+                    offset as u8,
+                ]
             }
 
             JmpCcA(cc, addr) => {
@@ -240,10 +409,18 @@ impl Opcode {
             }
 
             MovCcORB(cc, offset, base, src) => {
-                vec![0x70 | src as u8, ((base as u8) << 5) | cc as u8, offset as u8]
+                vec![
+                    0x70 | src as u8,
+                    ((base as u8) << 5) | cc as u8,
+                    offset as u8,
+                ]
             }
             MovCcORW(cc, offset, base, src) => {
-                vec![0x78 | src as u8, ((base as u8) << 5) | cc as u8, offset as u8]
+                vec![
+                    0x78 | src as u8,
+                    ((base as u8) << 5) | cc as u8,
+                    offset as u8,
+                ]
             }
 
             AlubRRB(op, dst, src) => {
@@ -311,7 +488,12 @@ impl Opcode {
     /// Decodes an `Opcode` from the front of `bytes`. Extra trailing bytes are
     /// permitted and ignored — only as many bytes as the instruction needs are read.
     pub fn from_slice(bytes: &[u8]) -> Result<Opcode, InvalidOpcodeError> {
-        let get = |i: usize| bytes.get(i).copied().ok_or(InvalidOpcodeError);
+        let get = |i: usize| {
+            bytes
+                .get(i)
+                .copied()
+                .ok_or(InvalidOpcodeError::UndefinedOpcode)
+        };
         let read_u16 = |i: usize| -> Result<u16, InvalidOpcodeError> {
             Ok(((get(i)? as u16) << 8) | get(i + 1)? as u16)
         };
@@ -343,10 +525,18 @@ impl Opcode {
                 let cc = ConditionCode::try_from(b2 & 15)?;
                 if l == 0 {
                     let (dst, src) = (ByteRegister::try_from(ddd)?, ByteRegister::try_from(sss)?);
-                    Ok(if is_xch { Opcode::XchCcRRB(cc, dst, src) } else { Opcode::MovCcRRB(cc, dst, src) })
+                    Ok(if is_xch {
+                        Opcode::XchCcRRB(cc, dst, src)
+                    } else {
+                        Opcode::MovCcRRB(cc, dst, src)
+                    })
                 } else {
                     let (dst, src) = (WordRegister::try_from(ddd)?, WordRegister::try_from(sss)?);
-                    Ok(if is_xch { Opcode::XchCcRRW(cc, dst, src) } else { Opcode::MovCcRRW(cc, dst, src) })
+                    Ok(if is_xch {
+                        Opcode::XchCcRRW(cc, dst, src)
+                    } else {
+                        Opcode::MovCcRRW(cc, dst, src)
+                    })
                 }
             }
 
@@ -374,10 +564,18 @@ impl Opcode {
                 let base = WordRegister::try_from(sss)?;
                 if l == 0 {
                     let dst = ByteRegister::try_from(ddd)?;
-                    Ok(if is_lea { Opcode::LeaCcROB(cc, dst, offset, base) } else { Opcode::MovCcROB(cc, dst, offset, base) })
+                    Ok(if is_lea {
+                        Opcode::LeaCcROB(cc, dst, offset, base)
+                    } else {
+                        Opcode::MovCcROB(cc, dst, offset, base)
+                    })
                 } else {
                     let dst = WordRegister::try_from(ddd)?;
-                    Ok(if is_lea { Opcode::LeaCcROW(cc, dst, offset, base) } else { Opcode::MovCcROW(cc, dst, offset, base) })
+                    Ok(if is_lea {
+                        Opcode::LeaCcROW(cc, dst, offset, base)
+                    } else {
+                        Opcode::MovCcROW(cc, dst, offset, base)
+                    })
                 }
             }
 
@@ -416,9 +614,19 @@ impl Opcode {
                 let cc = ConditionCode::try_from(b2 & 15)?;
                 let offset = get(2)? as i8;
                 if l == 0 {
-                    Ok(Opcode::MovCcORB(cc, offset, base, ByteRegister::try_from(sss)?))
+                    Ok(Opcode::MovCcORB(
+                        cc,
+                        offset,
+                        base,
+                        ByteRegister::try_from(sss)?,
+                    ))
                 } else {
-                    Ok(Opcode::MovCcORW(cc, offset, base, WordRegister::try_from(sss)?))
+                    Ok(Opcode::MovCcORW(
+                        cc,
+                        offset,
+                        base,
+                        WordRegister::try_from(sss)?,
+                    ))
                 }
             }
 
@@ -435,31 +643,57 @@ impl Opcode {
                     let sss = (b2 >> 5) & 0x7;
                     let op = AluBinaryOperation::try_from(b2 & 15)?;
                     if l == 0 {
-                        let (dst, src) = (ByteRegister::try_from(ddd)?, ByteRegister::try_from(sss)?);
-                        Ok(if is_cp { Opcode::CpAlubRRB(op, dst, src) } else { Opcode::AlubRRB(op, dst, src) })
+                        let (dst, src) =
+                            (ByteRegister::try_from(ddd)?, ByteRegister::try_from(sss)?);
+                        Ok(if is_cp {
+                            Opcode::CpAlubRRB(op, dst, src)
+                        } else {
+                            Opcode::AlubRRB(op, dst, src)
+                        })
                     } else {
-                        let (dst, src) = (WordRegister::try_from(ddd)?, WordRegister::try_from(sss)?);
-                        Ok(if is_cp { Opcode::CpAlubRRW(op, dst, src) } else { Opcode::AlubRRW(op, dst, src) })
+                        let (dst, src) =
+                            (WordRegister::try_from(ddd)?, WordRegister::try_from(sss)?);
+                        Ok(if is_cp {
+                            Opcode::CpAlubRRW(op, dst, src)
+                        } else {
+                            Opcode::AlubRRW(op, dst, src)
+                        })
                     }
                 } else if unary_form {
                     let op = AluUnaryOperation::try_from(b2 & 15)?;
                     if l == 0 {
                         let dst = ByteRegister::try_from(ddd)?;
-                        Ok(if is_cp { Opcode::CpAluuRB(op, dst) } else { Opcode::AluuRB(op, dst) })
+                        Ok(if is_cp {
+                            Opcode::CpAluuRB(op, dst)
+                        } else {
+                            Opcode::AluuRB(op, dst)
+                        })
                     } else {
                         let dst = WordRegister::try_from(ddd)?;
-                        Ok(if is_cp { Opcode::CpAluuRW(op, dst) } else { Opcode::AluuRW(op, dst) })
+                        Ok(if is_cp {
+                            Opcode::CpAluuRW(op, dst)
+                        } else {
+                            Opcode::AluuRW(op, dst)
+                        })
                     }
                 } else {
                     let op = AluBinaryOperation::try_from(b2 & 15)?;
                     if l == 0 {
                         let dst = ByteRegister::try_from(ddd)?;
                         let imm = get(2)?;
-                        Ok(if is_cp { Opcode::CpAlubRIB(op, dst, imm) } else { Opcode::AlubRIB(op, dst, imm) })
+                        Ok(if is_cp {
+                            Opcode::CpAlubRIB(op, dst, imm)
+                        } else {
+                            Opcode::AlubRIB(op, dst, imm)
+                        })
                     } else {
                         let dst = WordRegister::try_from(ddd)?;
                         let imm = read_u16(2)?;
-                        Ok(if is_cp { Opcode::CpAlubRIW(op, dst, imm) } else { Opcode::AlubRIW(op, dst, imm) })
+                        Ok(if is_cp {
+                            Opcode::CpAlubRIW(op, dst, imm)
+                        } else {
+                            Opcode::AlubRIW(op, dst, imm)
+                        })
                     }
                 }
             }
@@ -472,7 +706,7 @@ impl Opcode {
             }
 
             // Reserved
-            0b1011 => Err(InvalidOpcodeError),
+            0b1011 => Err(InvalidOpcodeError::UndefinedOpcode),
 
             // PUSH %
             0b1100 => {
@@ -553,7 +787,7 @@ impl Opcode {
             0b1111 => match b0 {
                 0xF0 => Ok(Opcode::Nop),
                 0xFF => Ok(Opcode::Halt),
-                _ => Err(InvalidOpcodeError),
+                _ => Err(InvalidOpcodeError::UndefinedOpcode),
             },
 
             _ => unreachable!(),
@@ -567,7 +801,7 @@ impl Display for Opcode {
         match self {
             MovRIB(dst, imm) => {
                 write!(f, "MOV %{dst}, ${imm:#x}")
-            },
+            }
             MovRIW(dst, imm) => {
                 write!(f, "MOV %{dst}, ${imm:#x}")
             }
@@ -634,16 +868,16 @@ impl Display for Opcode {
             }
             AlubRIB(op, dst, imm) => {
                 write!(f, "{op} %{dst}, ${imm:#x}")
-            },
+            }
             AlubRIW(op, dst, imm) => {
                 write!(f, "{op} %{dst}, ${imm:#x}")
             }
             AluuRB(op, dst) => {
                 write!(f, "{op} %{dst}")
-            },
+            }
             AluuRW(op, dst) => {
                 write!(f, "{op} %{dst}")
-            },
+            }
 
             CpAlubRRB(op, dst, src) => {
                 write!(f, "CP{op} %{dst}, %{src}")
@@ -653,92 +887,92 @@ impl Display for Opcode {
             }
             CpAlubRIB(op, dst, imm) => {
                 write!(f, "CP{op} %{dst}, ${imm:#x}")
-            },
+            }
             CpAlubRIW(op, dst, imm) => {
                 write!(f, "CP{op} %{dst}, ${imm:#x}")
             }
             CpAluuRB(op, dst) => {
                 write!(f, "CP{op} %{dst}")
-            },
+            }
             CpAluuRW(op, dst) => {
                 write!(f, "CP{op} %{dst}")
-            },
+            }
 
             JrCcX(cc, offset) => {
                 write!(f, "JR{cc} {offset:+}")
-            },
+            }
 
             PushRB(src) => {
                 write!(f, "PUSH %{src}")
-            },
+            }
             PushRW(src) => {
                 write!(f, "PUSH %{src}")
-            },
+            }
             PopRB(dst) => {
                 write!(f, "POP %{dst}")
-            },
+            }
             PopRW(dst) => {
                 write!(f, "POP %{dst}")
-            },
+            }
 
             ClbRIB(dst, bit) => {
                 write!(f, "CLB %{dst}, ${bit}")
-            },
+            }
             ClbRIW(dst, bit) => {
                 write!(f, "CLB %{dst}, ${bit}")
-            },
+            }
             ClbRRB(dst, bitreg) => {
                 write!(f, "CLB %{dst}, %{bitreg}")
-            },
+            }
             ClbRRW(dst, bitreg) => {
                 write!(f, "CLB %{dst}, %{bitreg}")
-            },
+            }
 
             StbRIB(dst, bit) => {
                 write!(f, "STB %{dst}, ${bit}")
-            },
+            }
             StbRIW(dst, bit) => {
                 write!(f, "STB %{dst}, ${bit}")
-            },
+            }
             StbRRB(dst, bitreg) => {
                 write!(f, "STB %{dst}, %{bitreg}")
-            },
+            }
             StbRRW(dst, bitreg) => {
                 write!(f, "STB %{dst}, %{bitreg}")
-            },
+            }
 
             TgbRIB(dst, bit) => {
                 write!(f, "TGB %{dst}, ${bit}")
-            },
+            }
             TgbRIW(dst, bit) => {
                 write!(f, "TGB %{dst}, ${bit}")
-            },
+            }
             TgbRRB(dst, bitreg) => {
                 write!(f, "TGB %{dst}, %{bitreg}")
-            },
+            }
             TgbRRW(dst, bitreg) => {
                 write!(f, "TGB %{dst}, %{bitreg}")
-            },
+            }
 
             TbitRIB(src, bit) => {
                 write!(f, "TBIT %{src}, ${bit}")
-            },
+            }
             TbitRIW(src, bit) => {
                 write!(f, "TBIT %{src}, ${bit}")
-            },
+            }
             TbitRRB(src, bitreg) => {
                 write!(f, "TBIT %{src}, %{bitreg}")
-            },
+            }
             TbitRRW(src, bitreg) => {
                 write!(f, "TBIT %{src}, %{bitreg}")
-            },
+            }
 
             Nop => {
                 write!(f, "NOP")
-            },
+            }
             Halt => {
                 write!(f, "HALT")
-            },
+            }
         }
     }
 }

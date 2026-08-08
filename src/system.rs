@@ -1,13 +1,19 @@
-use std::{error::Error, fmt::Display, io::{Read, Write}};
 use crate::register::{ByteRegister, WordRegister};
+use std::{
+    error::Error,
+    fmt::Display,
+    io::{Read, Write},
+};
 
 mod step;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[non_exhaustive]
 pub enum SystemError {
     RomTooLarge,
     WriteToRom,
     ReadOutOfRomBounds,
+    Halted,
 }
 
 impl Display for SystemError {
@@ -15,12 +21,13 @@ impl Display for SystemError {
         f.write_str(match self {
             Self::RomTooLarge => "rom too large",
             Self::WriteToRom => "attempt to write to rom",
-            Self::ReadOutOfRomBounds => "read out of rom bounds"
+            Self::ReadOutOfRomBounds => "read out of rom bounds",
+            Self::Halted => "system was halted",
         })
     }
 }
 
-impl Error for SystemError { }
+impl Error for SystemError {}
 
 pub const RAM_SIZE: usize = 0x8000;
 pub const ROM_PAGE_SIZE: usize = 0x8000;
@@ -49,10 +56,20 @@ pub struct System {
 impl Default for System {
     fn default() -> Self {
         Self {
-            reg_h: 0, reg_a: 0, reg_b: 0, reg_c: 0,
-            reg_x: 0, reg_l: 0, reg_m: 0, reg_n: 0,
-            reg_r4: 0, reg_sp: SP_START, reg_fl: 0, reg_pc: PC_START,
-            ram: [0; _], rom: Box::<[u8]>::default(),
+            reg_h: 0,
+            reg_a: 0,
+            reg_b: 0,
+            reg_c: 0,
+            reg_x: 0,
+            reg_l: 0,
+            reg_m: 0,
+            reg_n: 0,
+            reg_r4: 0,
+            reg_sp: SP_START,
+            reg_fl: 0,
+            reg_pc: PC_START,
+            ram: [0; _],
+            rom: Box::<[u8]>::default(),
             cycles: 0,
         }
     }
@@ -62,9 +79,12 @@ impl System {
     #[inline]
     pub fn new(rom: Box<[u8]>) -> Result<Self, SystemError> {
         if rom.len() > (ROM_PAGE_SIZE << 8) {
-            return Err(SystemError::RomTooLarge)
+            return Err(SystemError::RomTooLarge);
         }
-        Ok(Self {rom, ..Default::default()})
+        Ok(Self {
+            rom,
+            ..Default::default()
+        })
     }
 
     #[inline]
@@ -75,7 +95,7 @@ impl System {
     #[inline]
     pub fn replace_rom(&mut self, rom: Box<[u8]>) -> Result<Box<[u8]>, SystemError> {
         if rom.len() > (ROM_PAGE_SIZE << 8) {
-            return Err(SystemError::RomTooLarge)
+            return Err(SystemError::RomTooLarge);
         }
         Ok(std::mem::replace(&mut self.rom, rom))
     }
@@ -101,8 +121,13 @@ impl System {
     }
 
     #[inline]
-    pub fn is_running(&self) -> bool {
-        self.reg_fl & (1 << 15) == 0
+    pub fn is_halted(&self) -> bool {
+        self.reg_fl & (1 << 15) != 0
+    }
+
+    #[inline]
+    pub fn halt(&mut self) {
+        self.reg_fl |= 1 << 15;
     }
 }
 
@@ -169,17 +194,21 @@ impl System {
                 let mut value = 0xFFu8;
                 let _ = std::io::stdin().read(std::array::from_mut(&mut value))?;
                 Ok(value)
-            },
+            }
             index @ ..RAM_SIZE => Ok(self.ram[index]),
-            index @ RAM_SIZE.. => self.rom.get(
-                index - RAM_SIZE - usize::from(self.get_memb(0x7FFE)?) * ROM_PAGE_SIZE
-            ).copied().ok_or(SystemError::ReadOutOfRomBounds.into())
+            index @ RAM_SIZE.. => self
+                .rom
+                .get(index - RAM_SIZE - usize::from(self.get_memb(0x7FFE)?) * ROM_PAGE_SIZE)
+                .copied()
+                .ok_or(SystemError::ReadOutOfRomBounds.into()),
         }
     }
     #[inline]
     pub fn set_memb(&mut self, addr: u16, value: u8) -> Result<(), Box<dyn Error>> {
         match usize::from(addr) {
-            0x7F80 => {std::io::stdout().write_all(&[value])?;},
+            0x7F80 => {
+                std::io::stdout().write_all(&[value])?;
+            }
             index @ ..RAM_SIZE => self.ram[index] = value,
             RAM_SIZE.. => return Err(SystemError::WriteToRom.into()),
         };
@@ -187,7 +216,10 @@ impl System {
     }
     #[inline]
     pub fn get_memw(&self, addr: u16) -> Result<u16, Box<dyn Error>> {
-        Ok(u16::from_be_bytes([self.get_memb(addr)?, self.get_memb(addr.wrapping_add(1))?]))
+        Ok(u16::from_be_bytes([
+            self.get_memb(addr)?,
+            self.get_memb(addr.wrapping_add(1))?,
+        ]))
     }
     #[inline]
     pub fn set_memw(&mut self, addr: u16, value: u16) -> Result<(), Box<dyn Error>> {
