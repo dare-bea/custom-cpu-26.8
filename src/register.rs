@@ -1,5 +1,8 @@
+//! This module defines the registers used in the `CPU3v2` emulator, along with parsing and display functionality.
+
 use std::{error::Error, fmt::Display, str::FromStr};
 
+/// An error that occurs when parsing a register from a string.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ParseRegisterError {
     _private: (),
@@ -13,8 +16,10 @@ impl Display for ParseRegisterError {
 
 impl Error for ParseRegisterError {}
 
+/// An 8-bit register.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(u8)]
+#[allow(missing_docs)]
 pub enum ByteRegister {
     H,
     A,
@@ -58,8 +63,10 @@ impl FromStr for ByteRegister {
     }
 }
 
+/// A 16-bit register.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(u8)]
+#[allow(missing_docs)]
 pub enum WordRegister {
     HA,
     BC,

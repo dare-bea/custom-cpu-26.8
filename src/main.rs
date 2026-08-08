@@ -1,3 +1,5 @@
+//! Emulator for the system.
+
 use clap::Parser;
 use std::{error::Error, fmt::Display};
 

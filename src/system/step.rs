@@ -6,6 +6,7 @@ use crate::register::WordRegister::{FL, PC, SP};
 use crate::system::{SP_START, System, SystemError};
 
 impl System {
+    /// Checks a condition code against the current state of the system's flags.
     #[inline]
     #[must_use]
     pub fn condition(&self, cc: ConditionCode) -> bool {
@@ -34,6 +35,7 @@ impl System {
         }
     }
 
+    /// Calculates a binary ALU operation on two 8-bit operands, updating the system's flags accordingly.
     pub fn alu_binaryb(&mut self, op: AluBinaryOperation, lhs: u8, rhs: u8) -> u8 {
         use AluBinaryOperation::{Adc, Add, And, Bic, Or, Rol, Ror, Sar, Sbb, Shl, Shr, Sub, Xor};
         let flags = self.get_regw(FL);
@@ -114,6 +116,7 @@ impl System {
         value
     }
 
+    /// Calculates a binary ALU operation on two 16-bit operands, updating the system's flags accordingly.
     pub fn alu_binaryw(&mut self, op: AluBinaryOperation, lhs: u16, rhs: u16) -> u16 {
         use AluBinaryOperation::{Adc, Add, And, Bic, Or, Rol, Ror, Sar, Sbb, Shl, Shr, Sub, Xor};
         let flags = self.get_regw(FL);
@@ -194,6 +197,7 @@ impl System {
         value
     }
 
+    /// Calculates a unary ALU operation on an 8-bit operand, updating the system's flags accordingly.
     pub fn alu_unaryb(&mut self, op: AluUnaryOperation, value: u8) -> u8 {
         use AluUnaryOperation::{Abs, Dec, Inc, Neg, Not, Popcnt, Rcl, Rcr, Sgxt, Swap, Zero};
         let flags = self.get_regw(FL);
@@ -249,6 +253,7 @@ impl System {
         if op == Zero { 0 } else { result }
     }
 
+    /// Calculates a unary ALU operation on a 16-bit operand, updating the system's flags accordingly.
     pub fn alu_unaryw(&mut self, op: AluUnaryOperation, value: u16) -> u16 {
         use AluUnaryOperation::{Abs, Dec, Inc, Neg, Not, Popcnt, Rcl, Rcr, Sgxt, Swap, Zero};
         let flags = self.get_regw(FL);
@@ -310,6 +315,11 @@ impl System {
 }
 
 impl System {
+    /// Executes a single instruction in the system, returning the executed opcode.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the system is halted or if there is an issue fetching or executing the instruction.
     pub fn step(&mut self) -> Result<Opcode, Box<dyn Error>> {
         if self.is_halted() {
             return Err(SystemError::Halted.into());
@@ -336,6 +346,12 @@ impl System {
         Ok(opcode)
     }
 
+    /// Executes a given opcode in the system, updating the system's state accordingly.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is an issue executing the instruction.
+    #[allow(clippy::too_many_lines)]
     pub fn run_instruction(&mut self, opcode: Opcode) -> Result<(), Box<dyn Error>> {
         use Opcode::{
             AlubRIB, AlubRIW, AlubRRB, AlubRRW, AluuRB, AluuRW, CallCcA, ClbRIB, ClbRIW, ClbRRB,

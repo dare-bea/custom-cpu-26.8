@@ -1,13 +1,20 @@
+//! This module defines the opcodes used in the `CPU3v2` emulator, along with parsing and display functionality.
+
 use std::error::Error;
 use std::fmt::Display;
 
 use crate::register::{ByteRegister, WordRegister};
 
+/// An error that occurs when decoding an opcode from bytes.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum InvalidOpcodeError {
+    /// An undefined byte register was encountered while decoding an opcode.
     UndefinedByteRegister,
+    /// An undefined word register was encountered while decoding an opcode.
     UndefinedWordRegister,
+    /// An undefined condition code was encountered while decoding an opcode.
     UndefinedConditionCode,
+    /// An undefined opcode was encountered.
     UndefinedOpcode,
 }
 
@@ -24,24 +31,41 @@ impl Display for InvalidOpcodeError {
 
 impl Error for InvalidOpcodeError {}
 
+/// A condition code used in conditional instructions.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(u8)]
 pub enum ConditionCode {
+    /// Zero
     Z,
+    /// Unsigned carry (or Below / Borrow) (unsigned)
     C,
+    /// Sign
     S,
+    /// Signed Overflow
     O,
+    /// Less than or equal (signed)
     LE,
+    /// Below or equal (unsigned)
     BE,
+    /// Less than (signed)
     L,
+    /// False
     False,
+    /// Not zero
     NZ,
+    /// Not unsigned carry (or Not below / Not borrow) (unsigned)
     NC,
+    /// Not sign
     NS,
+    /// Not signed overflow
     NO,
+    /// Greater than (signed)
     G,
+    /// Above (unsigned)
     A,
+    /// Greater than or equal (signed)
     GE,
+    /// True
     #[default]
     True,
 }
@@ -71,37 +95,63 @@ impl std::ops::Not for ConditionCode {
     }
 }
 
+/// An ALU binary operation.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(u8)]
 pub enum AluBinaryOperation {
+    /// Add
     Add,
+    /// Subtract
     Sub,
+    /// Add with carry
     Adc,
+    /// Subtract with borrow
     Sbb,
+    /// Bitwise AND
     And,
+    /// Bitwise XOR
     Xor,
+    /// Bitwise AND NOT
     Bic,
+    /// Bitwise OR
     Or,
+    /// Shift left
     Shl,
+    /// Shift right
     Shr,
+    /// Arithmetic shift right
     Sar = 11,
+    /// Rotate left
     Rol,
+    /// Rotate right
     Ror,
 }
 
+/// An ALU unary operation.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(u8)]
 pub enum AluUnaryOperation {
+    /// Negate
     Neg,
+    /// Bitwise NOT
     Not,
+    /// Increment
     Inc,
+    /// Decrement
     Dec,
+    /// Absolute value
     Abs,
+    /// Sign-extend
     Sgxt,
+    /// Swap nibbles / bytes
     Swap,
+    /// Population count
     Popcnt,
+    /// Rotate left through carry
     Rcl,
+    /// Rotate right through carry
     Rcr,
+    /// Zero (flags set to original value)
     Zero = 15,
 }
 
@@ -270,66 +320,122 @@ impl Display for AluUnaryOperation {
     }
 }
 
+/// An opcode for the system.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(u8)]
 pub enum Opcode {
+    /// Move immediate to byte register
     MovRIB(ByteRegister, u8),
+    /// Move immediate to word register
     MovRIW(WordRegister, u16),
+    /// Conditional move from byte register to byte register
     MovCcRRB(ConditionCode, ByteRegister, ByteRegister),
+    /// Conditional move from word register to word register
     MovCcRRW(ConditionCode, WordRegister, WordRegister),
+    /// Conditional exchange between byte register and byte register
     XchCcRRB(ConditionCode, ByteRegister, ByteRegister),
+    /// Conditional exchange between word register and word register
     XchCcRRW(ConditionCode, WordRegister, WordRegister),
+    /// Move from immediate address to byte register
     MovRAB(ByteRegister, u16),
+    /// Move from immediate address to word register
     MovRAW(WordRegister, u16),
+    /// Conditional move from offset of base register to byte register
     MovCcROB(ConditionCode, ByteRegister, i8, WordRegister),
+    /// Conditional move from offset of base register to word register
     MovCcROW(ConditionCode, WordRegister, i8, WordRegister),
+    /// Conditional load effective address from offset of base register to byte register
     LeaCcROB(ConditionCode, ByteRegister, i8, WordRegister),
+    /// Conditional load effective address from offset of base register to word register
     LeaCcROW(ConditionCode, WordRegister, i8, WordRegister),
+    /// Conditional jump to address
     JmpCcA(ConditionCode, u16),
+    /// Conditional call to address
     CallCcA(ConditionCode, u16),
+    /// Move from byte register to immediate address
     MovARB(u16, ByteRegister),
+    /// Move from word register to immediate address
     MovARW(u16, WordRegister),
+    /// Conditional move from byte register to offset of base register
     MovCcORB(ConditionCode, i8, WordRegister, ByteRegister),
+    /// Conditional move from word register to offset of base register
     MovCcORW(ConditionCode, i8, WordRegister, WordRegister),
+    /// ALU binary operation between byte registers
     AlubRRB(AluBinaryOperation, ByteRegister, ByteRegister),
+    /// ALU binary operation between word registers
     AlubRRW(AluBinaryOperation, WordRegister, WordRegister),
+    /// ALU binary operation between byte register and immediate
     AlubRIB(AluBinaryOperation, ByteRegister, u8),
+    /// ALU binary operation between word register and immediate
     AlubRIW(AluBinaryOperation, WordRegister, u16),
+    /// ALU unary operation on byte register
     AluuRB(AluUnaryOperation, ByteRegister),
+    /// ALU unary operation on word register
     AluuRW(AluUnaryOperation, WordRegister),
+    /// Compare and set flags for ALU binary operation between byte registers
     CpAlubRRB(AluBinaryOperation, ByteRegister, ByteRegister),
+    /// Compare and set flags for ALU binary operation between word registers
     CpAlubRRW(AluBinaryOperation, WordRegister, WordRegister),
+    /// Compare and set flags for ALU binary operation between byte register and immediate
     CpAlubRIB(AluBinaryOperation, ByteRegister, u8),
+    /// Compare and set flags for ALU binary operation between word register and immediate
     CpAlubRIW(AluBinaryOperation, WordRegister, u16),
+    /// Compare and set flags for ALU unary operation on byte register
     CpAluuRB(AluUnaryOperation, ByteRegister),
+    /// Compare and set flags for ALU unary operation on word register
     CpAluuRW(AluUnaryOperation, WordRegister),
+    /// Conditional relative jump by offset
     JrCcX(ConditionCode, i8),
+    /// Push byte register onto stack
     PushRB(ByteRegister),
+    /// Push word register onto stack
     PushRW(WordRegister),
+    /// Pop byte register from stack
     PopRB(ByteRegister),
+    /// Pop word register from stack
     PopRW(WordRegister),
+    /// Clear immediate bit in byte register
     ClbRIB(ByteRegister, u8),
+    /// Clear immediate bit in word register
     ClbRIW(WordRegister, u8),
+    /// Clear byte-register-determined bit in word register
     ClbRRB(ByteRegister, ByteRegister),
+    /// Clear byte-register-determined bit in word register
     ClbRRW(WordRegister, ByteRegister),
+    /// Set immediate bit in byte register
     StbRIB(ByteRegister, u8),
+    /// Set immediate bit in word register
     StbRIW(WordRegister, u8),
+    /// Set byte-register-determined bit in word register
     StbRRB(ByteRegister, ByteRegister),
+    /// Set byte-register-determined bit in word register
     StbRRW(WordRegister, ByteRegister),
+    /// Toggle immediate bit in byte register
     TgbRIB(ByteRegister, u8),
+    /// Toggle immediate bit in word register
     TgbRIW(WordRegister, u8),
+    /// Toggle byte-register-determined bit in word register
     TgbRRB(ByteRegister, ByteRegister),
+    /// Toggle byte-register-determined bit in word register
     TgbRRW(WordRegister, ByteRegister),
+    /// Test immediate bit in byte register
     TbitRIB(ByteRegister, u8),
+    /// Test immediate bit in word register
     TbitRIW(WordRegister, u8),
+    /// Test byte-register-determined bit in word register
     TbitRRB(ByteRegister, ByteRegister),
+    /// Test byte-register-determined bit in word register
     TbitRRW(WordRegister, ByteRegister),
+    /// No operation
     Nop,
+    /// Halt the CPU
     Halt,
 }
 
 impl Opcode {
+    /// Converts the opcode into a vector of bytes representing its binary encoding.
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn to_vec(self) -> Vec<u8> {
         use Opcode::{
             AlubRIB, AlubRIW, AlubRRB, AlubRRW, AluuRB, AluuRW, CallCcA, ClbRIB, ClbRIW, ClbRRB,
@@ -373,28 +479,28 @@ impl Opcode {
                 vec![
                     0x30 | dst as u8,
                     ((base as u8) << 5) | cc as u8,
-                    offset as u8,
+                    offset.cast_unsigned(),
                 ]
             }
             MovCcROW(cc, dst, offset, base) => {
                 vec![
                     0x38 | dst as u8,
                     ((base as u8) << 5) | cc as u8,
-                    offset as u8,
+                    offset.cast_unsigned(),
                 ]
             }
             LeaCcROB(cc, dst, offset, base) => {
                 vec![
                     0x30 | dst as u8,
                     ((base as u8) << 5) | 0x10 | cc as u8,
-                    offset as u8,
+                    offset.cast_unsigned(),
                 ]
             }
             LeaCcROW(cc, dst, offset, base) => {
                 vec![
                     0x38 | dst as u8,
                     ((base as u8) << 5) | 0x10 | cc as u8,
-                    offset as u8,
+                    offset.cast_unsigned(),
                 ]
             }
 
@@ -420,14 +526,14 @@ impl Opcode {
                 vec![
                     0x70 | src as u8,
                     ((base as u8) << 5) | cc as u8,
-                    offset as u8,
+                    offset.cast_unsigned(),
                 ]
             }
             MovCcORW(cc, offset, base, src) => {
                 vec![
                     0x78 | src as u8,
                     ((base as u8) << 5) | cc as u8,
-                    offset as u8,
+                    offset.cast_unsigned(),
                 ]
             }
 
@@ -459,7 +565,7 @@ impl Opcode {
             CpAluuRB(op, dst) => vec![0x90 | dst as u8, 0x80 | op as u8],
             CpAluuRW(op, dst) => vec![0x98 | dst as u8, 0x80 | op as u8],
 
-            JrCcX(cc, offset) => vec![0xA0 | cc as u8, offset as u8],
+            JrCcX(cc, offset) => vec![0xA0 | cc as u8, offset.cast_unsigned()],
 
             PushRB(src) => vec![0xC0 | src as u8],
             PushRW(src) => vec![0xC8 | src as u8],
@@ -493,8 +599,12 @@ impl Opcode {
 }
 
 impl Opcode {
-    /// Decodes an `Opcode` from the front of `bytes`. Extra trailing bytes are
-    /// permitted and ignored — only as many bytes as the instruction needs are read.
+    /// Decodes an [`Opcode`] from `bytes`. Extra trailing bytes are ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`InvalidOpcodeError`] if the bytes do not represent a valid opcode.
+    #[allow(clippy::too_many_lines)]
     pub fn from_slice(bytes: &[u8]) -> Result<Opcode, InvalidOpcodeError> {
         let get = |i: usize| {
             bytes
@@ -568,7 +678,7 @@ impl Opcode {
                 let sss = (b2 >> 5) & 0x7;
                 let is_lea = (b2 >> 4) & 1 == 1;
                 let cc = ConditionCode::try_from(b2 & 15)?;
-                let offset = get(2)? as i8;
+                let offset = get(2)?.cast_signed();
                 let base = WordRegister::try_from(sss)?;
                 if l == 0 {
                     let dst = ByteRegister::try_from(ddd)?;
@@ -620,7 +730,7 @@ impl Opcode {
                 let b2 = get(1)?;
                 let base = WordRegister::try_from((b2 >> 5) & 0x7)?;
                 let cc = ConditionCode::try_from(b2 & 15)?;
-                let offset = get(2)? as i8;
+                let offset = get(2)?.cast_signed();
                 if l == 0 {
                     Ok(Opcode::MovCcORB(
                         cc,
@@ -709,7 +819,7 @@ impl Opcode {
             // JRcc rel
             0b1010 => {
                 let cc = ConditionCode::try_from(b0 & 15)?;
-                let offset = get(1)? as i8;
+                let offset = get(1)?.cast_signed();
                 Ok(Opcode::JrCcX(cc, offset))
             }
 
@@ -804,6 +914,7 @@ impl Opcode {
 }
 
 impl Display for Opcode {
+    #[allow(clippy::too_many_lines)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use Opcode::{
             AlubRIB, AlubRIW, AlubRRB, AlubRRW, AluuRB, AluuRW, CallCcA, ClbRIB, ClbRIW, ClbRRB,
