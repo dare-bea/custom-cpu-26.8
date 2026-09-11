@@ -1,6 +1,7 @@
 //! Emulator for the system.
 
 use clap::Parser;
+use sdl3::{event::Event, keyboard::Keycode};
 use std::{error::Error, fmt::Display};
 
 use cpu3v2::{
@@ -14,7 +15,7 @@ struct Args {
     /// Path to the binary to run.
     program_path: std::path::PathBuf,
 
-    /// Write each instruction to stderr.
+    /// Logs each instruction to stderr.
     #[arg(short, long)]
     disassembly: bool,
 
@@ -25,6 +26,10 @@ struct Args {
     /// Print registers when the program halts.
     #[arg(long)]
     debug_registers: bool,
+
+    /// Logs interrupts to stderr.
+    #[arg(long)]
+    log_interrupts: bool,
 
     /// Set the initial value of the %H register.
     #[arg(alias = "%h", long = "%H")]
@@ -235,25 +240,78 @@ fn system_from_args(rom: &[u8], args: &Args) -> Result<System, Box<dyn Error>> {
     Ok(system)
 }
 
+const CYCLES_PER_FRAME: u32 = 2_000_000 / 60;
+
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
+    let sdl_context = sdl3::init()?;
+    let video_subsystem = sdl_context.video()?;
+    let mut event_pump = sdl_context.event_pump()?;
+    let window = video_subsystem
+        .window(
+            "CPU3v2 Emulator",
+            256,
+            256)
+        .position_centered()
+        .build()?;
+    video_subsystem.text_input().start_with_options(&window, sdl3::keyboard::TextInputOptions {
+        autocorrect: Some(false),
+        multiline: Some(true),
+        ..Default::default()
+    })?;
+    let mut canvas = window.into_canvas();
+    canvas.set_draw_color((0, 0, 255));
+    canvas.clear();
+    canvas.present();
+
     let rom = std::fs::read(args.program_path.clone())?;
     let mut system = system_from_args(&rom, &args)?;
+    let mut next_frame: u32 = CYCLES_PER_FRAME;
 
     let ret_val = (|| {
-        while !system.is_halted() {
+        'running: while !system.is_halted() {
+            for event in event_pump.poll_iter() {
+                match event {
+                    Event::Quit {..} |
+                    Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                        break 'running;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
+                        system.input_text("\n")?;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::Backspace), .. } => {
+                        system.input_text("\x08")?;
+                    },
+                    Event::TextInput { text, .. } => {
+                        system.input_text(&text)?;
+                    },
+                    _ => {}
+                }
+            }
             let pc = system.get_regw(WordRegister::PC);
             if args.no_ram_pc && pc < system::PC_START {
                 return Err(RamExecution(pc).into());
             }
+            if system.cycles() >= next_frame {
+                system.render_sdl(&mut canvas)?;
+                canvas.present();
+                std::thread::sleep(std::time::Duration::from_nanos(1_000_000_000 / 60));
+                next_frame = system.cycles() + CYCLES_PER_FRAME;
+                system.interrupt(0x7FF0)?;
+                if args.log_interrupts {
+                    eprintln!("{pc:x}: VBLANK interrupt to {:x}", system.get_regw(WordRegister::PC));
+                }
+                continue 'running;
+            }
+            let cycles = system.cycles();
             match system.step() {
                 Ok(opcode) => {
                     if args.disassembly {
-                        eprintln!("{pc:x}: {opcode}");
+                        eprintln!("{pc:x}: {:<20} ; {:02x?} ; {} cycles", opcode.to_string(), opcode.to_vec(), system.cycles() - cycles);
                     }
                 }
-                Err(e) if matches!(e.downcast_ref(), Some(system::SystemError::Halted)) => break,
+                Err(system::SystemError::Halted) => break,
                 Err(e) => {
                     eprintln!(
                         "{:x}: {:x?}",
@@ -262,7 +320,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                             .map(|x| system.get_memb(pc.wrapping_add(x)))
                             .collect::<Result<Vec<u8>, _>>()?
                     );
-                    return Err(e);
+                    return Err(e.into());
                 }
             }
             // std::thread::sleep(std::time::Duration::from_millis(500));
@@ -313,6 +371,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         print!("SP = 0x{0:04x} | ", system.get_regw(WordRegister::SP));
         print!("FL = 0x{0:04x} | ", system.get_regw(WordRegister::FL));
         println!("PC = 0x{0:04x} |", system.get_regw(WordRegister::PC));
+        println!("Cycles: {}", system.cycles())
     }
     ret_val
 }

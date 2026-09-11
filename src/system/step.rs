@@ -1,5 +1,3 @@
-use std::error::Error;
-
 use crate::opcode::{AluBinaryOperation, AluUnaryOperation, ConditionCode, Opcode};
 use crate::register::WordRegister;
 use crate::register::WordRegister::{FL, PC, SP};
@@ -10,6 +8,8 @@ impl System {
     #[inline]
     #[must_use]
     pub fn condition(&self, cc: ConditionCode) -> bool {
+        self.cycles.update(|cycles| cycles + 1);
+
         let flags = self.get_regw(WordRegister::FL);
         match cc {
             ConditionCode::Z => flags & (1 << 0) != 0,
@@ -38,6 +38,7 @@ impl System {
     /// Calculates a binary ALU operation on two 8-bit operands, updating the system's flags accordingly.
     pub fn alu_binaryb(&mut self, op: AluBinaryOperation, lhs: u8, rhs: u8) -> u8 {
         use AluBinaryOperation::{Adc, Add, And, Bic, Or, Rol, Ror, Sar, Sbb, Shl, Shr, Sub, Xor};
+
         let flags = self.get_regw(FL);
         let (value, cf, of) = match op {
             Add => {
@@ -119,6 +120,7 @@ impl System {
     /// Calculates a binary ALU operation on two 16-bit operands, updating the system's flags accordingly.
     pub fn alu_binaryw(&mut self, op: AluBinaryOperation, lhs: u16, rhs: u16) -> u16 {
         use AluBinaryOperation::{Adc, Add, And, Bic, Or, Rol, Ror, Sar, Sbb, Shl, Shr, Sub, Xor};
+
         let flags = self.get_regw(FL);
         let (value, cf, of) = match op {
             Add => {
@@ -200,6 +202,7 @@ impl System {
     /// Calculates a unary ALU operation on an 8-bit operand, updating the system's flags accordingly.
     pub fn alu_unaryb(&mut self, op: AluUnaryOperation, value: u8) -> u8 {
         use AluUnaryOperation::{Abs, Dec, Inc, Neg, Not, Popcnt, Rcl, Rcr, Sgxt, Swap, Zero};
+
         let flags = self.get_regw(FL);
         let (result, cf, of) = match op {
             Neg => {
@@ -256,6 +259,7 @@ impl System {
     /// Calculates a unary ALU operation on a 16-bit operand, updating the system's flags accordingly.
     pub fn alu_unaryw(&mut self, op: AluUnaryOperation, value: u16) -> u16 {
         use AluUnaryOperation::{Abs, Dec, Inc, Neg, Not, Popcnt, Rcl, Rcr, Sgxt, Swap, Zero};
+
         let flags = self.get_regw(FL);
         let (result, cf, of) = match op {
             Neg => {
@@ -320,21 +324,17 @@ impl System {
     /// # Errors
     ///
     /// Returns an error if the system is halted or if there is an issue fetching or executing the instruction.
-    pub fn step(&mut self) -> Result<Opcode, Box<dyn Error>> {
+    pub fn step(&mut self) -> Result<Opcode, SystemError> {
         if self.is_halted() {
             return Err(SystemError::Halted.into());
         }
 
         let mut bytes = Vec::with_capacity(4);
         for x in 0..4 {
-            match self.get_memb(self.get_regw(WordRegister::PC).wrapping_add(x)) {
+            match self.get_direct_mem(self.get_regw(WordRegister::PC).wrapping_add(x)) {
                 Ok(byte) => bytes.push(byte),
-                Err(e) => {
-                    if let Some(SystemError::ReadOutOfRomBounds) = e.downcast_ref() {
-                        break;
-                    }
-                    return Err(e);
-                }
+                Err(SystemError::ReadOutOfRomBounds) => break,
+                Err(e) => return Err(e),
             }
         }
         let opcode = Opcode::from_slice(&bytes)?;
@@ -352,7 +352,7 @@ impl System {
     ///
     /// Returns an error if there is an issue executing the instruction.
     #[allow(clippy::too_many_lines)]
-    pub fn run_instruction(&mut self, opcode: Opcode) -> Result<(), Box<dyn Error>> {
+    pub fn run_instruction(&mut self, opcode: Opcode) -> Result<(), SystemError> {
         use Opcode::{
             AlubRIB, AlubRIW, AlubRRB, AlubRRW, AluuRB, AluuRW, CallCcA, ClbRIB, ClbRIW, ClbRRB,
             ClbRRW, CpAlubRIB, CpAlubRIW, CpAlubRRB, CpAlubRRW, CpAluuRB, CpAluuRW, Halt, JmpCcA,
@@ -360,7 +360,10 @@ impl System {
             MovCcRRB, MovCcRRW, MovRAB, MovRAW, MovRIB, MovRIW, Nop, PopRB, PopRW, PushRB, PushRW,
             StbRIB, StbRIW, StbRRB, StbRRW, TbitRIB, TbitRIW, TbitRRB, TbitRRW, TgbRIB, TgbRIW,
             TgbRRB, TgbRRW, XchCcRRB, XchCcRRW,
+            Reti
         };
+
+        self.cycles.update(|cycles| cycles + opcode.to_vec().len() as u32);
 
         match opcode {
             MovRIB(dst, imm) => {
@@ -612,6 +615,16 @@ impl System {
             }
 
             Nop => {}
+            Reti => {
+                let sp = self.get_regw(SP);
+                if sp >= SP_START {
+                    self.halt();
+                } else {
+                    self.set_regw(PC, self.get_memw(sp)?);
+                    self.set_regw(SP, sp.wrapping_add(2));
+                }
+                self.active_interrupt = None;
+            }
             Halt => {
                 self.halt();
             }

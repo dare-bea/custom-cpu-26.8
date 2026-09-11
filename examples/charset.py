@@ -1,0 +1,1 @@
+import sys; sys.stdout.buffer.write(b''.join([b[0:1] + b'(' + i.to_bytes(1) + b')' + b[4:] for i, b in enumerate((bytes.fromhex(''.join(('0100000000000000', '00000000000000FF',) + tuple(''.join({'`': '0', ';': 'F'}[v] for v in w) for w in x))) for z in sys.stdin.read().split('\n\n') for x in list(zip(*[y.split(' ') for y in z.split('\n')]))), ord(b' '))]))

@@ -2,17 +2,15 @@
 //!
 //! This module contains the implementation of the `System` struct, which represents the state of the `CPU3v2` emulator. It includes methods for managing registers, memory, and system operations.
 
-use crate::register::{ByteRegister, WordRegister};
+use crate::{opcode::InvalidOpcodeError, register::{ByteRegister, WordRegister}};
 use std::{
-    error::Error,
-    fmt::Display,
-    io::{Read, Write},
+    cell::{Cell, RefCell}, collections::VecDeque, error::Error, fmt::Display, io::{Read, Write},
 };
 
 mod step;
 
 /// An error that occurs during system operations.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum SystemError {
     /// The ROM provided to the system is too large.
@@ -23,6 +21,10 @@ pub enum SystemError {
     ReadOutOfRomBounds,
     /// The system is halted and cannot execute further instructions.
     Halted,
+    /// I/O error encountered.
+    IOError(std::io::Error),
+    /// Invalid opcode encountered.
+    InvalidOpcodeError(InvalidOpcodeError),
 }
 
 impl Display for SystemError {
@@ -31,8 +33,22 @@ impl Display for SystemError {
             Self::RomTooLarge => "rom too large",
             Self::WriteToRom => "attempt to write to rom",
             Self::ReadOutOfRomBounds => "read out of rom bounds",
+            Self::IOError(e) => return e.fmt(f),
+            Self::InvalidOpcodeError(e) => return e.fmt(f),
             Self::Halted => "system was halted",
         })
+    }
+}
+
+impl From<std::io::Error> for SystemError {
+    fn from(value: std::io::Error) -> Self {
+        Self::IOError(value)
+    }
+}
+
+impl From<InvalidOpcodeError> for SystemError {
+    fn from(value: InvalidOpcodeError) -> Self {
+        Self::InvalidOpcodeError(value)
     }
 }
 
@@ -46,6 +62,9 @@ pub const ROM_PAGE_SIZE: usize = 0x8000;
 pub const SP_START: u16 = 0x7F80;
 /// The starting address of the program counter (PC).
 pub const PC_START: u16 = 0x8000;
+
+/// The logic for the GPU.
+pub mod gpu;
 
 /// The state of the emulator, including registers, memory, and system flags.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -79,7 +98,25 @@ pub struct System {
     /// The ROM of the system, represented as a boxed slice of bytes.
     rom: Box<[u8]>,
     /// The number of cycles executed by the system.
-    cycles: u32,
+    cycles: Cell<u32>,
+    /// The number of frames outputted by the system.
+    frames: Cell<u32>,
+    /// The Video RAM Palette index register.
+    vram_palette_index: u8,
+    /// The Video RAM Tileset index register.
+    vram_tileset_index: u8,
+    /// The Video RAM Tiles index register.
+    vram_tiles_index: u16,
+    /// The Video RAM Palette, represented as a boxed array of 16-bit colors.
+    vram_palette: Box<[u16; gpu::PALETTE_ENTRY_COUNT]>,
+    /// The Video RAM Tileset, represented as a boxed array of 16-bit addresses.
+    vram_tileset: Box<[u16; gpu::TILESET_ENTRY_COUNT]>,
+    /// The Video RAM Tiles, represented as a boxed array of 8-bit tile indices.
+    vram_tiles: Box<[u8; gpu::SCREEN_COLUMNS * gpu::SCREEN_ROWS]>,
+    /// Text input buffer for certain MMIO operations.
+    text_input_buffer: RefCell<VecDeque<u8>>,
+    /// The active interrupt.
+    active_interrupt: Option<u16>,
 }
 
 impl Default for System {
@@ -98,8 +135,17 @@ impl Default for System {
             reg_fl: 0,
             reg_pc: PC_START,
             ram: unsafe { Box::<[u8; RAM_SIZE]>::new_zeroed().assume_init() },
+            vram_palette_index: 0,
+            vram_tileset_index: 0,
+            vram_tiles_index: 0,
+            vram_palette: unsafe { Box::<[u16; _]>::new_zeroed().assume_init() },
+            vram_tileset: unsafe { Box::<[u16; _]>::new_zeroed().assume_init() },
+            vram_tiles: unsafe { Box::<[u8; _]>::new_zeroed().assume_init() },
             rom: Box::<[u8]>::default(),
-            cycles: 0,
+            cycles: Cell::new(0),
+            frames: Cell::new(0),
+            text_input_buffer: RefCell::new(VecDeque::new()),
+            active_interrupt: None,
         }
     }
 }
@@ -181,6 +227,100 @@ impl System {
     pub fn halt(&mut self) {
         self.reg_fl |= 1 << 15;
     }
+
+    /// Interrupts the system. Fails if an interrupt is active.
+    pub fn interrupt(&mut self, interrupt_vector: u16) -> Result<(), SystemError> {
+        let vector = self.get_memw(interrupt_vector)?;
+        if self.active_interrupt.is_none() && vector != 0 {
+            self.active_interrupt = Some(interrupt_vector);
+            self.reg_sp = self.reg_sp.wrapping_sub(2);
+            self.set_memw(self.reg_sp, self.reg_pc)?;
+            self.reg_pc = vector;
+        }
+        Ok(())
+    }
+
+    /// Returns the number of cycles the system has performed.
+    #[inline]
+    pub fn cycles(&self) -> u32 {
+        self.cycles.get()
+    }
+
+    /// Returns the number of frames the system has outputted.
+    #[inline]
+    pub fn frames(&self) -> u32 {
+        self.frames.get()
+    }
+
+    /// Returns a mutable reference to the number of cycles the system has performed.
+    #[inline]
+    pub fn cycles_mut(&mut self) -> &mut u32 {
+        self.cycles.get_mut()
+    }
+
+    /// Returns a mutable reference to the number of frames the system has outputted.
+    #[inline]
+    pub fn frames_mut(&mut self) -> &mut u32 {
+        self.frames.get_mut()
+    }
+
+    /// Returns the current value of the Video RAM Palette index register.
+    pub fn vram_palette_index(&self) -> u8 {
+        self.vram_palette_index
+    }
+    /// Returns the current value of the Video RAM Tileset index register.
+    pub fn vram_tileset_index(&self) -> u8 {
+        self.vram_tileset_index
+    }
+    /// Returns the current value of the Video RAM Tiles index register.
+    pub fn vram_tiles_index(&self) -> u16 {
+        self.vram_tiles_index
+    }
+    /// Returns a reference to the Video RAM Palette.
+    pub fn vram_palette(&self) -> &[u16; gpu::PALETTE_ENTRY_COUNT] {
+        &self.vram_palette
+    }
+    /// Returns a reference to the Video RAM Tileset.
+    pub fn vram_tileset(&self) -> &[u16; gpu::TILESET_ENTRY_COUNT] {
+        &self.vram_tileset
+    }
+    /// Returns a reference to the Video RAM Tiles.
+    pub fn vram_tiles(&self) -> &[u8; gpu::SCREEN_COLUMNS * gpu::SCREEN_ROWS] {
+        &self.vram_tiles
+    }
+
+    /// Returns a mutable reference to the Video RAM Palette index register.
+    pub fn vram_palette_index_mut(&mut self) -> &mut u8 {
+        &mut self.vram_palette_index
+    }
+    /// Returns a mutable reference to the Video RAM Tileset index register.
+    pub fn vram_tileset_index_mut(&mut self) -> &mut u8 {
+        &mut self.vram_tileset_index
+    }
+    /// Returns a mutable reference to the Video RAM Tiles index register.
+    pub fn vram_tiles_index_mut(&mut self) -> &mut u16 {
+        &mut self.vram_tiles_index
+    }
+    /// Returns a mutable reference to the Video RAM Palette.
+    pub fn vram_palette_mut(&mut self) -> &mut [u16; gpu::PALETTE_ENTRY_COUNT] {
+        &mut self.vram_palette
+    }
+    /// Returns a mutable reference to the Video RAM Tileset.
+    pub fn vram_tileset_mut(&mut self) -> &mut [u16; gpu::TILESET_ENTRY_COUNT] {
+        &mut self.vram_tileset
+    }
+    /// Returns a mutable reference to the Video RAM Tiles.
+    pub fn vram_tiles_mut(&mut self) -> &mut [u8; gpu::SCREEN_COLUMNS * gpu::SCREEN_ROWS] {
+        &mut self.vram_tiles
+    }
+
+    /// Input text into the system's text input buffer, which can be used for certain MMIO operations.
+    pub fn input_text(&mut self, text: &str) -> Result<(), SystemError> {
+        for byte in text.bytes() {
+            self.text_input_buffer.get_mut().push_back(byte);
+        }
+        Ok(())
+    }
 }
 
 impl System {
@@ -244,7 +384,92 @@ impl System {
     }
 }
 
+#[derive(Debug)]
+enum MMIOError {
+    NotMMIOAddress,
+    SystemError(SystemError),
+}
+
+impl<T: Into<SystemError>> From<T> for MMIOError {
+    fn from(value: T) -> Self {
+        Self::SystemError(value.into())
+    }
+}
+
 impl System {
+    #[inline]
+    fn get_direct_mem(&self, addr: u16) -> Result<u8, SystemError> {
+        match usize::from(addr) {
+            index @ ..RAM_SIZE => Ok(self.ram[index]),
+            index @ RAM_SIZE.. => self
+                .rom
+                .get(index - RAM_SIZE + usize::from(self.get_direct_mem(0x7FFE)?) * ROM_PAGE_SIZE)
+                .copied()
+                .ok_or(SystemError::ReadOutOfRomBounds.into()),
+        }
+    }
+    #[inline]
+    fn set_direct_mem(&mut self, addr: u16, value: u8) -> Result<(), SystemError> {
+        match usize::from(addr) {
+            index @ ..RAM_SIZE => self.ram[index] = value,
+            RAM_SIZE.. => return Err(SystemError::WriteToRom.into()),
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn get_mmio(&self, addr: u16) -> Result<u16, MMIOError> {
+        match usize::from(addr) {
+            0x7F80 => {
+                let mut value = 0;
+                match std::io::stdin().read(std::array::from_mut(&mut value))? {
+                    0 => Ok(0xFFFF),
+                    _ => Ok(value.into()),
+                }
+            }
+            0x7F81 => {
+                if let Some(byte) = self.text_input_buffer.borrow_mut().pop_front() {
+                    Ok(u16::from(byte))
+                } else {
+                    Ok(0xFFFF)
+                }
+            }
+            0x7F90 => Ok(self.vram_palette_index().into()),
+            0x7F91 => Ok(self.vram_tileset_index().into()),
+            0x7F92 => Ok(self.vram_tiles_index()),
+            0x7F98 => Ok(self.vram_palette()[self.vram_palette_index() as usize]),
+            0x7F99 => Ok(self.vram_tileset()[self.vram_tileset_index() as usize]),
+            0x7F9A => Ok(self.vram_tiles()[self.vram_tiles_index() as usize].into()),
+            _ => Err(MMIOError::NotMMIOAddress),
+        }
+    }
+    #[inline]
+    fn set_mmio(&mut self, addr: u16, value: u16) -> Result<(), MMIOError> {
+        match usize::from(addr) {
+            0x7F80 => std::io::stdout().write_all(&[value as u8])?,
+            0x7F90 => *self.vram_palette_index_mut() = value as u8,
+            0x7F91 => *self.vram_tileset_index_mut() = value as u8,
+            0x7F92 => *self.vram_tiles_index_mut() = value,
+            0x7F98 => {
+                let index = self.vram_palette_index() as usize;
+                self.vram_palette_mut()[index] = value;
+                *self.vram_palette_index_mut() = self.vram_palette_index().wrapping_add(1);
+            },
+            0x7F99 => {
+                let index = self.vram_tileset_index() as usize;
+                self.vram_tileset_mut()[index] = value;
+                *self.vram_tileset_index_mut() = self.vram_tileset_index().wrapping_add(1);
+            },
+            0x7F9A => {
+                let index = self.vram_tiles_index() as usize;
+                self.vram_tiles_mut()[index] = value as u8;
+                *self.vram_tiles_index_mut() = self.vram_tiles_index().wrapping_add(1) % (gpu::SCREEN_COLUMNS * gpu::SCREEN_ROWS) as u16;
+            },
+            _ => return Err(MMIOError::NotMMIOAddress),
+        };
+        Ok(())
+    }
+
     /// Returns the value of the memory at the specified address.
     ///
     /// # Errors
@@ -253,19 +478,13 @@ impl System {
     ///
     /// Returns [`std::io::Error`] if there is an error reading from stdin when accessing `0x7F80`.
     #[inline]
-    pub fn get_memb(&self, addr: u16) -> Result<u8, Box<dyn Error>> {
-        match usize::from(addr) {
-            0x7F80 => {
-                let mut value = 0xFFu8;
-                let _ = std::io::stdin().read(std::array::from_mut(&mut value))?;
-                Ok(value)
-            }
-            index @ ..RAM_SIZE => Ok(self.ram[index]),
-            index @ RAM_SIZE.. => self
-                .rom
-                .get(index - RAM_SIZE + usize::from(self.get_memb(0x7FFE)?) * ROM_PAGE_SIZE)
-                .copied()
-                .ok_or(SystemError::ReadOutOfRomBounds.into()),
+    pub fn get_memb(&self, addr: u16) -> Result<u8, SystemError> {
+        self.cycles.update(|cycles| cycles + 1);
+
+        match self.get_mmio(addr) {
+            Ok(x) => Ok(x as u8),
+            Err(MMIOError::SystemError(x)) => Err(x),
+            Err(MMIOError::NotMMIOAddress) => self.get_direct_mem(addr).map_err(|e| e.into())
         }
     }
     /// Sets the value of the memory at the specified address.
@@ -276,15 +495,14 @@ impl System {
     ///
     /// Returns [`std::io::Error`] if there is an error writing to stdout when accessing `0x7F80`.
     #[inline]
-    pub fn set_memb(&mut self, addr: u16, value: u8) -> Result<(), Box<dyn Error>> {
-        match usize::from(addr) {
-            0x7F80 => {
-                std::io::stdout().write_all(&[value])?;
-            }
-            index @ ..RAM_SIZE => self.ram[index] = value,
-            RAM_SIZE.. => return Err(SystemError::WriteToRom.into()),
+    pub fn set_memb(&mut self, addr: u16, value: u8) -> Result<(), SystemError> {
+        self.cycles.update(|cycles| cycles + 1);
+
+        match self.set_mmio(addr, value as u16) {
+            Ok(()) => Ok(()),
+            Err(MMIOError::SystemError(x)) => Err(x),
+            Err(MMIOError::NotMMIOAddress) => self.set_direct_mem(addr, value).map_err(|e| e.into())
         }
-        Ok(())
     }
     /// Returns the value of the memory at the specified address as a 16-bit word.
     ///
@@ -294,11 +512,17 @@ impl System {
     ///
     /// Returns [`std::io::Error`] if there is an error reading from stdin when accessing `0x7F80`.
     #[inline]
-    pub fn get_memw(&self, addr: u16) -> Result<u16, Box<dyn Error>> {
-        Ok(u16::from_be_bytes([
-            self.get_memb(addr)?,
-            self.get_memb(addr.wrapping_add(1))?,
-        ]))
+    pub fn get_memw(&self, addr: u16) -> Result<u16, SystemError> {
+        self.cycles.update(|cycles| cycles + 1);
+
+        match self.get_mmio(addr) {
+            Ok(x) => Ok(x),
+            Err(MMIOError::SystemError(x)) => Err(x),
+            Err(MMIOError::NotMMIOAddress) => Ok(u16::from_be_bytes([
+                self.get_direct_mem(addr)?,
+                self.get_direct_mem(addr.wrapping_add(1))?,
+            ]))
+        }
     }
     /// Sets the value of the memory at the specified address as a 16-bit word.
     ///
@@ -308,10 +532,18 @@ impl System {
     ///
     /// Returns [`std::io::Error`] if there is an error writing to stdout when accessing `0x7F80`.
     #[inline]
-    pub fn set_memw(&mut self, addr: u16, value: u16) -> Result<(), Box<dyn Error>> {
-        let [hi, lo] = value.to_be_bytes();
-        self.set_memb(addr, hi)?;
-        self.set_memb(addr.wrapping_add(1), lo)?;
-        Ok(())
+    pub fn set_memw(&mut self, addr: u16, value: u16) -> Result<(), SystemError> {
+        self.cycles.update(|cycles| cycles + 1);
+
+        match self.set_mmio(addr, value) {
+            Ok(()) => Ok(()),
+            Err(MMIOError::SystemError(x)) => Err(x),
+            Err(MMIOError::NotMMIOAddress) => {
+                let [hi, lo] = value.to_be_bytes();
+                self.set_direct_mem(addr, hi)?;
+                self.set_direct_mem(addr.wrapping_add(1), lo)?;
+                Ok(())
+            }
+        }
     }
 }

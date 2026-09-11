@@ -3,7 +3,7 @@
 use std::error::Error;
 use std::fmt::Display;
 
-use crate::register::{ByteRegister, WordRegister};
+use crate::{register::{ByteRegister, WordRegister}};
 
 /// An error that occurs when decoding an opcode from bytes.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -428,6 +428,8 @@ pub enum Opcode {
     TbitRRW(WordRegister, ByteRegister),
     /// No operation
     Nop,
+    /// Return from interrupt
+    Reti,
     /// Halt the CPU
     Halt,
 }
@@ -444,6 +446,7 @@ impl Opcode {
             MovCcRRB, MovCcRRW, MovRAB, MovRAW, MovRIB, MovRIW, Nop, PopRB, PopRW, PushRB, PushRW,
             StbRIB, StbRIW, StbRRB, StbRRW, TbitRIB, TbitRIW, TbitRRB, TbitRRW, TgbRIB, TgbRIW,
             TgbRRB, TgbRRW, XchCcRRB, XchCcRRW,
+            Reti, 
         };
 
         match self {
@@ -593,6 +596,7 @@ impl Opcode {
             TbitRRW(src, bitreg) => vec![0xE8 | src as u8, ((bitreg as u8) << 5) | 0x0B],
 
             Nop => vec![0xF0],
+            Reti => vec![0xF1],
             Halt => vec![0xFF],
         }
     }
@@ -904,6 +908,7 @@ impl Opcode {
             // NOP / HALT / reserved
             0b1111 => match b0 {
                 0xF0 => Ok(Opcode::Nop),
+                0xF1 => Ok(Opcode::Reti),
                 0xFF => Ok(Opcode::Halt),
                 _ => Err(InvalidOpcodeError::UndefinedOpcode),
             },
@@ -923,6 +928,7 @@ impl Display for Opcode {
             MovCcRRB, MovCcRRW, MovRAB, MovRAW, MovRIB, MovRIW, Nop, PopRB, PopRW, PushRB, PushRW,
             StbRIB, StbRIW, StbRRB, StbRRW, TbitRIB, TbitRIW, TbitRRB, TbitRRW, TgbRIB, TgbRIW,
             TgbRRB, TgbRRW, XchCcRRB, XchCcRRW,
+            Reti,
         };
         match self {
             MovRIB(dst, imm) => {
@@ -1095,6 +1101,9 @@ impl Display for Opcode {
 
             Nop => {
                 write!(f, "NOP")
+            }
+            Reti => {
+                write!(f, "RETI")
             }
             Halt => {
                 write!(f, "HALT")

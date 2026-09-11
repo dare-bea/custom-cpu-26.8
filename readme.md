@@ -9,8 +9,17 @@ The system uses big-endian values.
 * `0x0000` - `0x7F7F`: RAM
 * `0x7F80` - `0x7FEF`: Memory-Mapped IO
   * `0x7F80`: Standard Input/Output
-    * Getting `$0xFF` from standard input indicates EOF.
-* `0x7FF0` - `0x7FF1`: Interrupt Vector 0 (Reserved)
+    * Getting `$0xFFFF` from standard input indicates EOF.
+  * `0x7F81`: Window input
+    * Getting `$0xFFFF` from window input indicates no input.
+  * `0x7F90`: Current VRAM Palette Index
+  * `0x7F91`: Current VRAM Tileset Index
+  * `0x7F92`: Current VRAM Tile Index
+  * `0x7F98`: VRAM Palette Entry at Index (advances on write)
+  * `0x7F99`: VRAM Tileset Entry at Index (advances on write)
+  * `0x7F9A`: VRAM Tile at Index (advances on write)
+* `0x7FF0` - `0x7FF1`: V-Blank Interrupt Vector
+  * Initalized to `0x0000`. If the vector is zero, no interrupt will occur.
 * `0x7FF2` - `0x7FF3`: Interrupt Vector 1 (Reserved)
 * `0x7FF4` - `0x7FF5`: Interrupt Vector 2 (Reserved)
 * `0x7FF6` - `0x7FF7`: Interrupt Vector 3 (Reserved)
@@ -50,8 +59,7 @@ Four word registers have special functions:
 * SP - Stack pointer. Used by PUSH/POP/CALL/RET; the stack grows downwards. Initialized to `0x7F80`.
 * FL - Flags. Modified by ALU operations and TBIT.
   See the Flags list below for information on individual flags.
-* PC - Program counter. Incremented following each operation.
-  Initialized to the first two bytes of ROM (at `0x8000`).
+* PC - Program counter. Incremented following each operation. Initialized to `0x8000`.
 
 The four remaining word general-purpose registers comprise of byte register pairs.
 For example, `HA` consists of `H` as the high byte and `A` as the low byte.
@@ -181,6 +189,11 @@ NOP          : 11110000
 > No operation.
 
 ```
+RETI   : 11110001
+```
+> Return from interrupt.
+
+```
 (RESERVED)   : 1111....
 ```
 > Reserved for additional system opcodes.
@@ -249,7 +262,7 @@ Unless specified, CF and OF are cleared.
 12. (RESERVED)
 13. (RESERVED)
 14. (RESERVED)
-15. ZERO = 0
+15. ZERO = 0  
    ZF and SF are instead set according to the operand, not the result. CF is set if the operand is the maximum unsigned value. OF is set if the operand is the maximum signed value.
 
 ZF and SF are set according to the result.
