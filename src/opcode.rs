@@ -3,7 +3,7 @@
 use std::error::Error;
 use std::fmt::Display;
 
-use crate::{register::{ByteRegister, WordRegister}};
+use crate::register::{ByteRegister, WordRegister};
 
 /// An error that occurs when decoding an opcode from bytes.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -444,9 +444,8 @@ impl Opcode {
             ClbRRW, CpAlubRIB, CpAlubRIW, CpAlubRRB, CpAlubRRW, CpAluuRB, CpAluuRW, Halt, JmpCcA,
             JrCcX, LeaCcROB, LeaCcROW, MovARB, MovARW, MovCcORB, MovCcORW, MovCcROB, MovCcROW,
             MovCcRRB, MovCcRRW, MovRAB, MovRAW, MovRIB, MovRIW, Nop, PopRB, PopRW, PushRB, PushRW,
-            StbRIB, StbRIW, StbRRB, StbRRW, TbitRIB, TbitRIW, TbitRRB, TbitRRW, TgbRIB, TgbRIW,
-            TgbRRB, TgbRRW, XchCcRRB, XchCcRRW,
-            Reti, 
+            Reti, StbRIB, StbRIW, StbRRB, StbRRW, TbitRIB, TbitRIW, TbitRRB, TbitRRW, TgbRIB,
+            TgbRIW, TgbRRB, TgbRRW, XchCcRRB, XchCcRRW,
         };
 
         match self {
@@ -926,9 +925,8 @@ impl Display for Opcode {
             ClbRRW, CpAlubRIB, CpAlubRIW, CpAlubRRB, CpAlubRRW, CpAluuRB, CpAluuRW, Halt, JmpCcA,
             JrCcX, LeaCcROB, LeaCcROW, MovARB, MovARW, MovCcORB, MovCcORW, MovCcROB, MovCcROW,
             MovCcRRB, MovCcRRW, MovRAB, MovRAW, MovRIB, MovRIW, Nop, PopRB, PopRW, PushRB, PushRW,
-            StbRIB, StbRIW, StbRRB, StbRRW, TbitRIB, TbitRIW, TbitRRB, TbitRRW, TgbRIB, TgbRIW,
-            TgbRRB, TgbRRW, XchCcRRB, XchCcRRW,
-            Reti,
+            Reti, StbRIB, StbRIW, StbRRB, StbRRW, TbitRIB, TbitRIW, TbitRRB, TbitRRW, TgbRIB,
+            TgbRIW, TgbRRB, TgbRRW, XchCcRRB, XchCcRRW,
         };
         match self {
             MovRIB(dst, imm) => {

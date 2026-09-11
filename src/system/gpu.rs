@@ -1,6 +1,5 @@
 use crate::system::System;
 
-
 /// The number of tiles on the screen vertically.
 pub const SCREEN_ROWS: usize = 32;
 /// The number of tiles on the screen horizontally.
@@ -19,60 +18,82 @@ pub const TILESET_ENTRY_COUNT: usize = 256;
 pub const TILESET_ENTRY_COLORS: usize = 16;
 /// The size of each tileset entry in bytes.
 pub const TILESET_ENTRY_DATA_SIZE: usize = TILE_ROWS * TILE_COLUMNS / 2;
+const RGB_PIXEL_SIZE: usize = 3;
+const RGB_TILE_SIZE: usize = TILE_ROWS * TILE_COLUMNS * RGB_PIXEL_SIZE;
 
 /// The size of the Video RAM in bytes.
-pub const VRAM_SIZE: usize =
-    PALETTE_ENTRY_COUNT * 2
+pub const VRAM_SIZE: usize = PALETTE_ENTRY_COUNT * 2
     + TILESET_ENTRY_COUNT * 2
     + (SCREEN_COLUMNS / TILE_COLUMNS) * (SCREEN_ROWS / TILE_ROWS);
 
 impl System {
     /// Render the current state of VRAM to an SDL canvas.
-    pub fn render_sdl(&self, canvas: &mut sdl3::render::Canvas<sdl3::video::Window>) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn render_sdl(
+        &self,
+        canvas: &mut sdl3::render::Canvas<sdl3::video::Window>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let palette = self.vram_palette();
         let tileset_pointers = self.vram_tileset();
         let tiles = self.vram_tiles();
+        let mut pixels =
+            vec![0; SCREEN_COLUMNS * TILE_COLUMNS * SCREEN_ROWS * TILE_ROWS * RGB_PIXEL_SIZE];
+        let mut tile_cache: Vec<Option<[u8; RGB_TILE_SIZE]>> =
+            (0..TILESET_ENTRY_COUNT).map(|_| None).collect();
 
         for row in 0..SCREEN_ROWS {
             for col in 0..SCREEN_COLUMNS {
                 let tile_index = tiles[row * SCREEN_COLUMNS + col] as usize;
-                let tile_pointer = tileset_pointers[tile_index];
-
-                let tile_colors = (0..TILESET_ENTRY_COLORS as u16)
-                    .map(|i| {
-                        let color_index = self.get_memb(tile_pointer.wrapping_add(i as u16));
-                        color_index.map(|i| palette[i as usize])
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                let tile_data = (0..TILESET_ENTRY_DATA_SIZE as u16)
-                    .map(|i| {
-                        self.get_memb(tile_pointer.wrapping_add(TILESET_ENTRY_COLORS as u16).wrapping_add(i)).map(|x| [((x >> 4) & 15), (x & 15)])
-                    })
-                    .collect::<Result<Vec<[u8; 2]>, _>>()?
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<u8>>()
-                    .as_chunks::<TILE_COLUMNS>().0
-                    .to_vec();
-                for tile_row in 0..TILE_ROWS {
-                    for tile_col in 0..TILE_COLUMNS {
-                        let color_index = tile_data[tile_row][tile_col];
-                        let color: u16 = tile_colors[color_index as usize];
-                        // RGB565 to 24-bit conversion
-                        let color: (u8, u8, u8) = (
-                            ((color >> 11) & 0x1F) as u8 * (255 / 31),
-                            ((color >> 5) & 0x3F) as u8 * (255 / 63),
-                            (color & 0x1F) as u8 * (255 / 31),
-                        );
-                        canvas.set_draw_color(sdl3::pixels::Color::RGB(color.0, color.1, color.2));
-                        canvas.draw_point(sdl3::rect::Point::new(
-                            (col * TILE_COLUMNS + tile_col) as i32,
-                            (row * TILE_ROWS + tile_row) as i32,
-                        ))?;
+                if tile_cache[tile_index].is_none() {
+                    let tile_pointer = tileset_pointers[tile_index];
+                    let mut tile_colors = [0; TILESET_ENTRY_COLORS];
+                    for (index, color) in tile_colors.iter_mut().enumerate() {
+                        let color_index = self.get_memb(tile_pointer.wrapping_add(index as u16))?;
+                        *color = palette[color_index as usize];
                     }
+                    let mut decoded_tile = [0; RGB_TILE_SIZE];
+                    for tile_row in 0..TILE_ROWS {
+                        for tile_col in 0..TILE_COLUMNS {
+                            let data_offset = TILESET_ENTRY_COLORS as u16
+                                + (tile_row * TILE_COLUMNS + tile_col) as u16 / 2;
+                            let data = self.get_memb(tile_pointer.wrapping_add(data_offset))?;
+                            let color_index = if tile_col % 2 == 0 {
+                                data >> 4
+                            } else {
+                                data & 15
+                            };
+                            let color = tile_colors[color_index as usize];
+                            let pixel = (tile_row * TILE_COLUMNS + tile_col) * RGB_PIXEL_SIZE;
+                            decoded_tile[pixel..pixel + RGB_PIXEL_SIZE].copy_from_slice(&[
+                                ((color >> 11) & 0x1F) as u8 * (255 / 31),
+                                ((color >> 5) & 0x3F) as u8 * (255 / 63),
+                                (color & 0x1F) as u8 * (255 / 31),
+                            ]);
+                        }
+                    }
+                    tile_cache[tile_index] = Some(decoded_tile);
+                }
+                let tile = tile_cache[tile_index].as_ref().expect("tile was cached");
+                for tile_row in 0..TILE_ROWS {
+                    let source_start = tile_row * TILE_COLUMNS * RGB_PIXEL_SIZE;
+                    let destination_start =
+                        ((row * TILE_ROWS + tile_row) * SCREEN_COLUMNS * TILE_COLUMNS
+                            + col * TILE_COLUMNS)
+                            * RGB_PIXEL_SIZE;
+                    pixels[destination_start..destination_start + TILE_COLUMNS * RGB_PIXEL_SIZE]
+                        .copy_from_slice(
+                            &tile[source_start..source_start + TILE_COLUMNS * RGB_PIXEL_SIZE],
+                        );
                 }
             }
         }
+        let texture_creator = canvas.texture_creator();
+        let mut texture = texture_creator.create_texture_streaming(
+            sdl3::pixels::PixelFormat::RGB24,
+            (SCREEN_COLUMNS * TILE_COLUMNS) as u32,
+            (SCREEN_ROWS * TILE_ROWS) as u32,
+        )?;
+        texture.update(None, &pixels, SCREEN_COLUMNS * TILE_COLUMNS * 3)?;
+        canvas.copy(&texture, None, None)?;
         self.frames.update(|f| f.wrapping_add(1));
         Ok(())
     }

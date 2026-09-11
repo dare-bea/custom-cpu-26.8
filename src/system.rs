@@ -2,9 +2,16 @@
 //!
 //! This module contains the implementation of the `System` struct, which represents the state of the `CPU3v2` emulator. It includes methods for managing registers, memory, and system operations.
 
-use crate::{opcode::InvalidOpcodeError, register::{ByteRegister, WordRegister}};
+use crate::{
+    opcode::InvalidOpcodeError,
+    register::{ByteRegister, WordRegister},
+};
 use std::{
-    cell::{Cell, RefCell}, collections::VecDeque, error::Error, fmt::Display, io::{Read, Write},
+    cell::{Cell, RefCell},
+    collections::VecDeque,
+    error::Error,
+    fmt::Display,
+    io::{Read, Write},
 };
 
 mod step;
@@ -454,17 +461,18 @@ impl System {
                 let index = self.vram_palette_index() as usize;
                 self.vram_palette_mut()[index] = value;
                 *self.vram_palette_index_mut() = self.vram_palette_index().wrapping_add(1);
-            },
+            }
             0x7F99 => {
                 let index = self.vram_tileset_index() as usize;
                 self.vram_tileset_mut()[index] = value;
                 *self.vram_tileset_index_mut() = self.vram_tileset_index().wrapping_add(1);
-            },
+            }
             0x7F9A => {
                 let index = self.vram_tiles_index() as usize;
                 self.vram_tiles_mut()[index] = value as u8;
-                *self.vram_tiles_index_mut() = self.vram_tiles_index().wrapping_add(1) % (gpu::SCREEN_COLUMNS * gpu::SCREEN_ROWS) as u16;
-            },
+                *self.vram_tiles_index_mut() = self.vram_tiles_index().wrapping_add(1)
+                    % (gpu::SCREEN_COLUMNS * gpu::SCREEN_ROWS) as u16;
+            }
             _ => return Err(MMIOError::NotMMIOAddress),
         };
         Ok(())
@@ -482,7 +490,7 @@ impl System {
         match self.get_mmio(addr) {
             Ok(x) => Ok(x as u8),
             Err(MMIOError::SystemError(x)) => Err(x),
-            Err(MMIOError::NotMMIOAddress) => self.get_direct_mem(addr).map_err(|e| e.into())
+            Err(MMIOError::NotMMIOAddress) => self.get_direct_mem(addr).map_err(|e| e.into()),
         }
     }
     /// Sets the value of the memory at the specified address.
@@ -497,7 +505,9 @@ impl System {
         match self.set_mmio(addr, value as u16) {
             Ok(()) => Ok(()),
             Err(MMIOError::SystemError(x)) => Err(x),
-            Err(MMIOError::NotMMIOAddress) => self.set_direct_mem(addr, value).map_err(|e| e.into())
+            Err(MMIOError::NotMMIOAddress) => {
+                self.set_direct_mem(addr, value).map_err(|e| e.into())
+            }
         }
     }
     /// Returns the value of the memory at the specified address as a 16-bit word.
@@ -515,7 +525,7 @@ impl System {
             Err(MMIOError::NotMMIOAddress) => Ok(u16::from_be_bytes([
                 self.get_direct_mem(addr)?,
                 self.get_direct_mem(addr.wrapping_add(1))?,
-            ]))
+            ])),
         }
     }
     /// Sets the value of the memory at the specified address as a 16-bit word.

@@ -251,7 +251,7 @@ pub(crate) struct WindowOutput {
     pub(crate) _sdl_context: sdl3::Sdl,
     pub(crate) _video_subsystem: sdl3::VideoSubsystem,
     pub(crate) event_pump: sdl3::EventPump,
-    pub(crate) canvas: sdl3::render::Canvas<sdl3::video::Window>
+    pub(crate) canvas: sdl3::render::Canvas<sdl3::video::Window>,
 }
 
 impl WindowOutput {
@@ -260,23 +260,26 @@ impl WindowOutput {
         let video_subsystem = sdl_context.video()?;
         let event_pump = sdl_context.event_pump()?;
         let window = video_subsystem
-            .window(
-                "CPU3v2 Emulator",
-                256,
-                256)
+            .window("CPU3v2 Emulator", 256, 256)
             .position_centered()
             .build()?;
-        video_subsystem.text_input().start_with_options(&window, sdl3::keyboard::TextInputOptions {
-            autocorrect: Some(false),
-            multiline: Some(true),
-            ..Default::default()
-        })?;
+        video_subsystem.text_input().start_with_options(
+            &window,
+            sdl3::keyboard::TextInputOptions {
+                autocorrect: Some(false),
+                multiline: Some(true),
+                ..Default::default()
+            },
+        )?;
         let mut canvas = window.into_canvas();
         canvas.set_draw_color((0, 0, 255));
         canvas.clear();
         canvas.present();
         Ok(Self {
-            _sdl_context: sdl_context, _video_subsystem: video_subsystem, event_pump, canvas
+            _sdl_context: sdl_context,
+            _video_subsystem: video_subsystem,
+            event_pump,
+            canvas,
         })
     }
 }
@@ -292,6 +295,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let rom = std::fs::read(args.program_path.clone())?;
     let mut system = system_from_args(&rom, &args)?;
     let mut next_frame: u32 = CYCLES_PER_FRAME;
+    let frame_duration = std::time::Duration::from_nanos(1_000_000_000 / u64::from(TARGET_FPS));
+    let mut next_frame_deadline = std::time::Instant::now() + frame_duration;
     #[cfg(feature = "fps")]
     let mut last_frame = std::time::Instant::now();
 
@@ -300,19 +305,28 @@ fn main() -> Result<(), Box<dyn Error>> {
             if let Some(ref mut w) = winout {
                 for event in w.event_pump.poll_iter() {
                     match event {
-                        Event::Quit {..} |
-                        Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                        Event::Quit { .. }
+                        | Event::KeyDown {
+                            keycode: Some(Keycode::Escape),
+                            ..
+                        } => {
                             break 'running;
-                        },
-                        Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
+                        }
+                        Event::KeyDown {
+                            keycode: Some(Keycode::Return),
+                            ..
+                        } => {
                             system.input_text("\n")?;
-                        },
-                        Event::KeyDown { keycode: Some(Keycode::Backspace), .. } => {
+                        }
+                        Event::KeyDown {
+                            keycode: Some(Keycode::Backspace),
+                            ..
+                        } => {
                             system.input_text("\x08")?;
-                        },
+                        }
                         Event::TextInput { text, .. } => {
                             system.input_text(&text)?;
-                        },
+                        }
                         _ => {}
                     }
                 }
@@ -324,19 +338,27 @@ fn main() -> Result<(), Box<dyn Error>> {
             if system.cycles() >= next_frame {
                 #[cfg(feature = "fps")]
                 {
-                let now = std::time::Instant::now();
-                eprintln!("{:.1} FPS", (now - last_frame).as_secs_f64().recip());
-                last_frame = now;
+                    let now = std::time::Instant::now();
+                    eprintln!("{:.1} FPS", (now - last_frame).as_secs_f64().recip());
+                    last_frame = now;
                 }
                 if let Some(ref mut w) = winout {
                     system.render_sdl(&mut w.canvas)?;
                     w.canvas.present();
                 }
-                std::thread::sleep(std::time::Duration::from_nanos(1_000_000_000 / u64::from(TARGET_FPS)));
+                if let Some(remaining) =
+                    next_frame_deadline.checked_duration_since(std::time::Instant::now())
+                {
+                    std::thread::sleep(remaining);
+                }
+                next_frame_deadline += frame_duration;
                 next_frame = system.cycles() + CYCLES_PER_FRAME;
                 system.interrupt(0x7FF0)?;
                 if args.log_interrupts {
-                    eprintln!("{pc:x}: VBLANK interrupt to {:x}", system.get_regw(WordRegister::PC));
+                    eprintln!(
+                        "{pc:x}: VBLANK interrupt to {:x}",
+                        system.get_regw(WordRegister::PC)
+                    );
                 }
                 continue 'running;
             }
@@ -344,7 +366,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             match system.step() {
                 Ok(opcode) => {
                     if args.disassembly {
-                        eprintln!("{pc:x}: {:<20} ; {:02x?} ; {} cycles", opcode.to_string(), opcode.to_vec(), system.cycles() - cycles);
+                        eprintln!(
+                            "{pc:x}: {:<20} ; {:02x?} ; {} cycles",
+                            opcode.to_string(),
+                            opcode.to_vec(),
+                            system.cycles() - cycles
+                        );
                     }
                 }
                 Err(system::SystemError::Halted) => break,
@@ -372,7 +399,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             "H = {0:3} (0x{0:02x})   |   ",
             system.get_regb(ByteRegister::H)
         );
-        println!("A = {0:3} (0x{0:02x})   |", system.get_regb(ByteRegister::A));
+        println!(
+            "A = {0:3} (0x{0:02x})   |",
+            system.get_regb(ByteRegister::A)
+        );
         print!(
             "| BC = {0:5} (0x{0:04x}) |   ",
             system.get_regw(WordRegister::BC)
@@ -381,7 +411,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             "B = {0:3} (0x{0:02x})   |   ",
             system.get_regb(ByteRegister::B)
         );
-        println!("C = {0:3} (0x{0:02x})   |", system.get_regb(ByteRegister::C));
+        println!(
+            "C = {0:3} (0x{0:02x})   |",
+            system.get_regb(ByteRegister::C)
+        );
         print!(
             "| XL = {0:5} (0x{0:04x}) |   ",
             system.get_regw(WordRegister::XL)
@@ -390,7 +423,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             "X = {0:3} (0x{0:02x})   |   ",
             system.get_regb(ByteRegister::X)
         );
-        println!("L = {0:3} (0x{0:02x})   |", system.get_regb(ByteRegister::L));
+        println!(
+            "L = {0:3} (0x{0:02x})   |",
+            system.get_regb(ByteRegister::L)
+        );
         print!(
             "| MN = {0:5} (0x{0:04x}) |   ",
             system.get_regw(WordRegister::MN)
@@ -399,7 +435,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             "M = {0:3} (0x{0:02x})   |   ",
             system.get_regb(ByteRegister::M)
         );
-        println!("N = {0:3} (0x{0:02x})   |", system.get_regb(ByteRegister::N));
+        println!(
+            "N = {0:3} (0x{0:02x})   |",
+            system.get_regb(ByteRegister::N)
+        );
         print!(
             "| R4 = {0:5} (0x{0:04x}) | ",
             system.get_regw(WordRegister::R4)
