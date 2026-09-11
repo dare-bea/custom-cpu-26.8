@@ -9,6 +9,7 @@ use cpu3v2::{
     system::{self, System},
 };
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -287,10 +288,7 @@ impl WindowOutput {
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
-    let mut winout = match args.windowed {
-        true => Some(WindowOutput::new()?),
-        false => None,
-    };
+    let mut winout = if args.windowed { Some(WindowOutput::new()?) } else { None };
 
     let rom = std::fs::read(args.program_path.clone())?;
     let mut system = system_from_args(&rom, &args)?;
@@ -302,35 +300,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let ret_val = (|| {
         'running: while !system.is_halted() {
-            if let Some(ref mut w) = winout {
-                for event in w.event_pump.poll_iter() {
-                    match event {
-                        Event::Quit { .. }
-                        | Event::KeyDown {
-                            keycode: Some(Keycode::Escape),
-                            ..
-                        } => {
-                            break 'running;
-                        }
-                        Event::KeyDown {
-                            keycode: Some(Keycode::Return),
-                            ..
-                        } => {
-                            system.input_text("\n")?;
-                        }
-                        Event::KeyDown {
-                            keycode: Some(Keycode::Backspace),
-                            ..
-                        } => {
-                            system.input_text("\x08")?;
-                        }
-                        Event::TextInput { text, .. } => {
-                            system.input_text(&text)?;
-                        }
-                        _ => {}
-                    }
+            if let Some(ref mut w) = winout
+                && !handle_sdl_events(&mut system, w) {
+                    break 'running;
                 }
-            }
             let pc = system.get_regw(WordRegister::PC);
             if args.no_ram_pc && pc < system::PC_START {
                 return Err(RamExecution(pc).into());
@@ -391,6 +364,43 @@ fn main() -> Result<(), Box<dyn Error>> {
         Ok(())
     })();
     if args.debug_registers {
+        print_debug_info(&system);
+    }
+    ret_val
+}
+
+fn handle_sdl_events(system: &mut System, winout: &mut WindowOutput) -> bool {
+    for event in winout.event_pump.poll_iter() {
+        match event {
+            Event::Quit { .. }
+            | Event::KeyDown {
+                keycode: Some(Keycode::Escape),
+                ..
+            } => {
+                return false;
+            }
+            Event::KeyDown {
+                keycode: Some(Keycode::Return),
+                ..
+            } => {
+                system.input_text("\n");
+            }
+            Event::KeyDown {
+                keycode: Some(Keycode::Backspace),
+                ..
+            } => {
+                system.input_text("\x08");
+            }
+            Event::TextInput { text, .. } => {
+                system.input_text(&text);
+            }
+            _ => {}
+        }
+    }
+    true
+}
+
+fn print_debug_info(system: &System) {
         print!(
             "| HA = {0:5} (0x{0:04x}) |   ",
             system.get_regw(WordRegister::HA)
@@ -446,7 +456,5 @@ fn main() -> Result<(), Box<dyn Error>> {
         print!("SP = 0x{0:04x} | ", system.get_regw(WordRegister::SP));
         print!("FL = 0x{0:04x} | ", system.get_regw(WordRegister::FL));
         println!("PC = 0x{0:04x} |", system.get_regw(WordRegister::PC));
-        println!("Cycles: {}", system.cycles())
-    }
-    ret_val
+        println!("Cycles: {}", system.cycles());
 }

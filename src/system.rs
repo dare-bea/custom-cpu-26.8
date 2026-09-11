@@ -236,6 +236,10 @@ impl System {
     }
 
     /// Interrupts the system. Fails if an interrupt is active.
+    /// 
+    /// # Errors
+    /// 
+    /// A [`SystemError`] is returned if a memory write fails.
     pub fn interrupt(&mut self, interrupt_vector: u16) -> Result<(), SystemError> {
         let vector = self.get_memw(interrupt_vector)?;
         if self.active_interrupt.is_none() && vector != 0 {
@@ -322,11 +326,10 @@ impl System {
     }
 
     /// Input text into the system's text input buffer, which can be used for certain MMIO operations.
-    pub fn input_text(&mut self, text: &str) -> Result<(), SystemError> {
+    pub fn input_text(&mut self, text: &str) {
         for byte in text.bytes() {
             self.text_input_buffer.get_mut().push_back(byte);
         }
-        Ok(())
     }
 }
 
@@ -412,14 +415,14 @@ impl System {
                 .rom
                 .get(index - RAM_SIZE + usize::from(self.get_direct_mem(0x7FFE)?) * ROM_PAGE_SIZE)
                 .copied()
-                .ok_or(SystemError::ReadOutOfRomBounds.into()),
+                .ok_or(SystemError::ReadOutOfRomBounds),
         }
     }
     #[inline]
     fn set_direct_mem(&mut self, addr: u16, value: u8) -> Result<(), SystemError> {
         match usize::from(addr) {
             index @ ..RAM_SIZE => self.ram[index] = value,
-            RAM_SIZE.. => return Err(SystemError::WriteToRom.into()),
+            RAM_SIZE.. => return Err(SystemError::WriteToRom),
         }
         Ok(())
     }
@@ -474,7 +477,7 @@ impl System {
                     % (gpu::SCREEN_COLUMNS * gpu::SCREEN_ROWS) as u16;
             }
             _ => return Err(MMIOError::NotMMIOAddress),
-        };
+        }
         Ok(())
     }
 
@@ -490,7 +493,7 @@ impl System {
         match self.get_mmio(addr) {
             Ok(x) => Ok(x as u8),
             Err(MMIOError::SystemError(x)) => Err(x),
-            Err(MMIOError::NotMMIOAddress) => self.get_direct_mem(addr).map_err(|e| e.into()),
+            Err(MMIOError::NotMMIOAddress) => self.get_direct_mem(addr),
         }
     }
     /// Sets the value of the memory at the specified address.
@@ -502,11 +505,11 @@ impl System {
     /// Returns [`std::io::Error`] if there is an error writing to stdout when accessing `0x7F80`.
     #[inline]
     pub fn set_memb(&mut self, addr: u16, value: u8) -> Result<(), SystemError> {
-        match self.set_mmio(addr, value as u16) {
+        match self.set_mmio(addr, u16::from(value)) {
             Ok(()) => Ok(()),
             Err(MMIOError::SystemError(x)) => Err(x),
             Err(MMIOError::NotMMIOAddress) => {
-                self.set_direct_mem(addr, value).map_err(|e| e.into())
+                self.set_direct_mem(addr, value)
             }
         }
     }

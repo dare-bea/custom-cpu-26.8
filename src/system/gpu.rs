@@ -28,6 +28,10 @@ pub const VRAM_SIZE: usize = PALETTE_ENTRY_COUNT * 2
 
 impl System {
     /// Render the current state of VRAM to an SDL canvas.
+    /// 
+    /// # Errors
+    /// 
+    /// An error may occur if an SDL error occurs, or memory access to the system fails
     pub fn render_sdl(
         &self,
         canvas: &mut sdl3::render::Canvas<sdl3::video::Window>,
@@ -72,7 +76,9 @@ impl System {
                     }
                     tile_cache[tile_index] = Some(decoded_tile);
                 }
-                let tile = tile_cache[tile_index].as_ref().expect("tile was cached");
+                let Some(tile) = tile_cache[tile_index].as_ref() else {
+                    unreachable!("tile was cached")
+                };
                 for tile_row in 0..TILE_ROWS {
                     let source_start = tile_row * TILE_COLUMNS * RGB_PIXEL_SIZE;
                     let destination_start =

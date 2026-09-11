@@ -324,7 +324,7 @@ impl System {
     /// Returns an error if the system is halted or if there is an issue fetching or executing the instruction.
     pub fn step(&mut self) -> Result<Opcode, SystemError> {
         if self.is_halted() {
-            return Err(SystemError::Halted.into());
+            return Err(SystemError::Halted);
         }
 
         let mut bytes = Vec::with_capacity(4);
