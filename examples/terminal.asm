@@ -55,7 +55,7 @@ terminal_init:
         jrb __terminal_init__tileset
     mov %n, $0xFF
     mov 0x7F91, %n
-    mov %xl, $terminal_charset + ("@"-" ")*0x30
+    mov %xl, $terminal_charset + (0x7F-" ")*0x30
     mov 0x7F99, %xl
     mov %n, $0x05
     mov 0x7F91, %n
