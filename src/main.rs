@@ -31,6 +31,10 @@ struct Args {
     #[arg(long)]
     log_interrupts: bool,
 
+    /// Creates an window for visual output.
+    #[arg(short, long)]
+    windowed: bool,
+
     /// Set the initial value of the %H register.
     #[arg(alias = "%h", long = "%H")]
     reg_h: Option<u8>,
@@ -242,28 +246,47 @@ fn system_from_args(rom: &[u8], args: &Args) -> Result<System, Box<dyn Error>> {
 
 const CYCLES_PER_FRAME: u32 = 2_000_000 / 60;
 
+pub(crate) struct WindowOutput {
+    pub(crate) _sdl_context: sdl3::Sdl,
+    pub(crate) _video_subsystem: sdl3::VideoSubsystem,
+    pub(crate) event_pump: sdl3::EventPump,
+    pub(crate) canvas: sdl3::render::Canvas<sdl3::video::Window>
+}
+
+impl WindowOutput {
+    fn new() -> Result<Self, Box<dyn Error>> {
+        let sdl_context = sdl3::init()?;
+        let video_subsystem = sdl_context.video()?;
+        let event_pump = sdl_context.event_pump()?;
+        let window = video_subsystem
+            .window(
+                "CPU3v2 Emulator",
+                256,
+                256)
+            .position_centered()
+            .build()?;
+        video_subsystem.text_input().start_with_options(&window, sdl3::keyboard::TextInputOptions {
+            autocorrect: Some(false),
+            multiline: Some(true),
+            ..Default::default()
+        })?;
+        let mut canvas = window.into_canvas();
+        canvas.set_draw_color((0, 0, 255));
+        canvas.clear();
+        canvas.present();
+        Ok(Self {
+            _sdl_context: sdl_context, _video_subsystem: video_subsystem, event_pump, canvas
+        })
+    }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
-    let sdl_context = sdl3::init()?;
-    let video_subsystem = sdl_context.video()?;
-    let mut event_pump = sdl_context.event_pump()?;
-    let window = video_subsystem
-        .window(
-            "CPU3v2 Emulator",
-            256,
-            256)
-        .position_centered()
-        .build()?;
-    video_subsystem.text_input().start_with_options(&window, sdl3::keyboard::TextInputOptions {
-        autocorrect: Some(false),
-        multiline: Some(true),
-        ..Default::default()
-    })?;
-    let mut canvas = window.into_canvas();
-    canvas.set_draw_color((0, 0, 255));
-    canvas.clear();
-    canvas.present();
+    let mut winout = match args.windowed {
+        true => Some(WindowOutput::new()?),
+        false => None,
+    };
 
     let rom = std::fs::read(args.program_path.clone())?;
     let mut system = system_from_args(&rom, &args)?;
@@ -271,22 +294,24 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let ret_val = (|| {
         'running: while !system.is_halted() {
-            for event in event_pump.poll_iter() {
-                match event {
-                    Event::Quit {..} |
-                    Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                        break 'running;
-                    },
-                    Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
-                        system.input_text("\n")?;
-                    },
-                    Event::KeyDown { keycode: Some(Keycode::Backspace), .. } => {
-                        system.input_text("\x08")?;
-                    },
-                    Event::TextInput { text, .. } => {
-                        system.input_text(&text)?;
-                    },
-                    _ => {}
+            if let Some(ref mut w) = winout {
+                for event in w.event_pump.poll_iter() {
+                    match event {
+                        Event::Quit {..} |
+                        Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                            break 'running;
+                        },
+                        Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
+                            system.input_text("\n")?;
+                        },
+                        Event::KeyDown { keycode: Some(Keycode::Backspace), .. } => {
+                            system.input_text("\x08")?;
+                        },
+                        Event::TextInput { text, .. } => {
+                            system.input_text(&text)?;
+                        },
+                        _ => {}
+                    }
                 }
             }
             let pc = system.get_regw(WordRegister::PC);
@@ -294,8 +319,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 return Err(RamExecution(pc).into());
             }
             if system.cycles() >= next_frame {
-                system.render_sdl(&mut canvas)?;
-                canvas.present();
+                if let Some(ref mut w) = winout {
+                    system.render_sdl(&mut w.canvas)?;
+                    w.canvas.present();
+                }
                 std::thread::sleep(std::time::Duration::from_nanos(1_000_000_000 / 60));
                 next_frame = system.cycles() + CYCLES_PER_FRAME;
                 system.interrupt(0x7FF0)?;

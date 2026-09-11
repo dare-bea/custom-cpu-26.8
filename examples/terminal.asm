@@ -129,5 +129,5 @@ __terminal_putchar__backspace:
     ret
 
 terminal_charset:
-    #include "charset.bin"
+    #include "charset.bin.inc"
 __terminal_charset__end:
