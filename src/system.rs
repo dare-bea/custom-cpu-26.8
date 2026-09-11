@@ -479,8 +479,6 @@ impl System {
     /// Returns [`std::io::Error`] if there is an error reading from stdin when accessing `0x7F80`.
     #[inline]
     pub fn get_memb(&self, addr: u16) -> Result<u8, SystemError> {
-        self.cycles.update(|cycles| cycles + 1);
-
         match self.get_mmio(addr) {
             Ok(x) => Ok(x as u8),
             Err(MMIOError::SystemError(x)) => Err(x),
@@ -496,8 +494,6 @@ impl System {
     /// Returns [`std::io::Error`] if there is an error writing to stdout when accessing `0x7F80`.
     #[inline]
     pub fn set_memb(&mut self, addr: u16, value: u8) -> Result<(), SystemError> {
-        self.cycles.update(|cycles| cycles + 1);
-
         match self.set_mmio(addr, value as u16) {
             Ok(()) => Ok(()),
             Err(MMIOError::SystemError(x)) => Err(x),
@@ -513,8 +509,6 @@ impl System {
     /// Returns [`std::io::Error`] if there is an error reading from stdin when accessing `0x7F80`.
     #[inline]
     pub fn get_memw(&self, addr: u16) -> Result<u16, SystemError> {
-        self.cycles.update(|cycles| cycles + 1);
-
         match self.get_mmio(addr) {
             Ok(x) => Ok(x),
             Err(MMIOError::SystemError(x)) => Err(x),
@@ -533,8 +527,6 @@ impl System {
     /// Returns [`std::io::Error`] if there is an error writing to stdout when accessing `0x7F80`.
     #[inline]
     pub fn set_memw(&mut self, addr: u16, value: u16) -> Result<(), SystemError> {
-        self.cycles.update(|cycles| cycles + 1);
-
         match self.set_mmio(addr, value) {
             Ok(()) => Ok(()),
             Err(MMIOError::SystemError(x)) => Err(x),

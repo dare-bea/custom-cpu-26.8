@@ -7,6 +7,9 @@ edition = "2024"
 clap = { version = "4.6.6", features = ["derive"] }
 sdl3 = "0.20.0"
 
+[features]
+fps = []
+
 [lints.rust]
 missing_docs = "warn"
 

@@ -244,7 +244,8 @@ fn system_from_args(rom: &[u8], args: &Args) -> Result<System, Box<dyn Error>> {
     Ok(system)
 }
 
-const CYCLES_PER_FRAME: u32 = 2_000_000 / 60;
+const TARGET_FPS: u32 = 60;
+const CYCLES_PER_FRAME: u32 = 2_000_000 / TARGET_FPS;
 
 pub(crate) struct WindowOutput {
     pub(crate) _sdl_context: sdl3::Sdl,
@@ -291,6 +292,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let rom = std::fs::read(args.program_path.clone())?;
     let mut system = system_from_args(&rom, &args)?;
     let mut next_frame: u32 = CYCLES_PER_FRAME;
+    #[cfg(feature = "fps")]
+    let mut last_frame = std::time::Instant::now();
 
     let ret_val = (|| {
         'running: while !system.is_halted() {
@@ -319,11 +322,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                 return Err(RamExecution(pc).into());
             }
             if system.cycles() >= next_frame {
+                #[cfg(feature = "fps")]
+                {
+                let now = std::time::Instant::now();
+                eprintln!("{:.1} FPS", (now - last_frame).as_secs_f64().recip());
+                last_frame = now;
+                }
                 if let Some(ref mut w) = winout {
                     system.render_sdl(&mut w.canvas)?;
                     w.canvas.present();
                 }
-                std::thread::sleep(std::time::Duration::from_nanos(1_000_000_000 / 60));
+                std::thread::sleep(std::time::Duration::from_nanos(1_000_000_000 / u64::from(TARGET_FPS)));
                 next_frame = system.cycles() + CYCLES_PER_FRAME;
                 system.interrupt(0x7FF0)?;
                 if args.log_interrupts {
