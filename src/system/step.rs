@@ -316,15 +316,31 @@ impl System {
     }
 }
 
+/// The operation the system performed during a step.
+pub enum SystemStep {
+    /// The system ran an instruction.
+    RanInstruction(Opcode),
+    /// The system handled an interrupt.
+    Interrupt(u16),
+}
+
 impl System {
-    /// Executes a single instruction in the system, returning the executed opcode.
+    /// Performs a step of the CPU.
+    /// 
+    /// May execute the instruction at the current PC, returning the executed opcode, or execute an interrupt.
     ///
     /// # Errors
     ///
     /// Returns an error if the system is halted or if there is an issue fetching or executing the instruction.
-    pub fn step(&mut self) -> Result<Opcode, SystemError> {
+    pub fn step(&mut self) -> Result<SystemStep, SystemError> {
         if self.is_halted() {
             return Err(SystemError::Halted);
+        }
+
+        if self.cycles() >= self.next_vblank {
+            self.next_vblank += super::gpu::VBLANK_INTERVAL;
+            self.interrupt(0x7FF0)?;
+            return Ok(SystemStep::Interrupt(0x7FF0));
         }
 
         let mut bytes = Vec::with_capacity(4);
@@ -341,7 +357,7 @@ impl System {
 
         self.run_instruction(opcode)?;
 
-        Ok(opcode)
+        Ok(SystemStep::RanInstruction(opcode))
     }
 
     /// Executes a given opcode in the system, updating the system's state accordingly.

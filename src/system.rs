@@ -16,6 +16,8 @@ use std::{
 
 mod step;
 
+pub use step::SystemStep;
+
 /// An error that occurs during system operations.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -112,9 +114,12 @@ pub struct System {
     vram_pointer: u16,
     /// The Video RAM, represented as a boxed array of bytes.
     vram: Box<[u8; gpu::VRAM_SIZE]>,
+    /// The text input buffer for SDL text input.
     text_input_buffer: RefCell<VecDeque<u8>>,
     /// The active interrupt.
     active_interrupt: Option<u16>,
+    /// The next cycle where a vblank interrupt will occur.
+    next_vblank: u32,
 }
 
 impl Default for System {
@@ -139,6 +144,7 @@ impl Default for System {
             cycles: Cell::new(0),
             frames: Cell::new(0),
             text_input_buffer: RefCell::new(VecDeque::new()),
+            next_vblank: gpu::VBLANK_INTERVAL,
             active_interrupt: None,
         }
     }
@@ -234,6 +240,7 @@ impl System {
             self.reg_sp = self.reg_sp.wrapping_sub(2);
             self.set_memw(self.reg_sp, self.reg_pc)?;
             self.reg_pc = vector;
+            self.cycles.update(|cycles| cycles + 1);
         }
         Ok(())
     }

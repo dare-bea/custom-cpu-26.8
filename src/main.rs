@@ -5,8 +5,7 @@ use sdl3::{event::Event, keyboard::Keycode};
 use std::{error::Error, fmt::Display};
 
 use cpu3v2::{
-    register::{ByteRegister, WordRegister},
-    system::{self, System},
+    register::{ByteRegister, WordRegister}, system::{self, System, SystemStep, gpu},
 };
 
 #[allow(clippy::struct_excessive_bools)]
@@ -20,9 +19,13 @@ struct Args {
     #[arg(short, long)]
     windowed: bool,
 
-    /// Set the target speed, in frames per second
-    #[arg(long="speed", default_value_t=std::num::NonZero::new(60).unwrap())]
-    target_fps: std::num::NonZero<u32>,
+    /// Set the target speed multiplier
+    #[arg(long="speed", default_value_t=1.0)]
+    target_speed: f64,
+
+    /// Set the target speed multiplier
+    #[arg(long="cpf", default_value_t=gpu::VBLANK_INTERVAL)]
+    cycles_per_frame: u32,
 
     /// Logs each instruction to stderr.
     #[arg(short, long)]
@@ -286,9 +289,7 @@ impl WindowOutput {
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
-    let target_fps: std::num::NonZero<u32> = args.target_fps;
-    let cycles_per_frame: u32 = 2_000_000 / 60;
-    let frame_duration = std::time::Duration::from_nanos(1_000_000_000 / u64::from(target_fps.get()));
+    let frame_duration = std::time::Duration::from_nanos((1_000_000_000.0 / 60.0 / args.target_speed * (args.cycles_per_frame/gpu::VBLANK_INTERVAL) as f64) as u64);
 
     let mut winout = if args.windowed { Some(WindowOutput::new()?) } else { None };
 
@@ -299,44 +300,52 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut next_frame_deadline = std::time::Instant::now();
     #[cfg(feature = "fps")]
     let mut last_frame = std::time::Instant::now();
+    let mut last_cycles: u32 = 0;
 
     let ret_val = {
         'running: while !system.is_halted() {
-            if let Some(ref mut w) = winout {
-                match handle_sdl_events(&mut system, w) {
-                    EventHandlerResult::Quit => break 'running,
-                    EventHandlerResult::Reset => {
-                        system = system_from_args(&rom, &args)?;
-                        next_frame = 0;
-                        next_frame_deadline = std::time::Instant::now();
-                        #[cfg(feature = "fps")]
-                        {last_frame = std::time::Instant::now()};
-                        continue 'running;
-                    },
-                    EventHandlerResult::Continue => {}
-                }
-            }
             let pc = system.get_regw(WordRegister::PC);
             if args.no_ram_pc && pc < system::PC_START {
                 return Err(RamExecution(pc).into());
             }
             if system.cycles() >= next_frame {
+                #[cfg(feature = "fps")]
+                let fps = match (std::time::Instant::now() - last_frame).as_secs_f64() {
+                    0.0 => 0.0,
+                    secs => (system.cycles()-last_cycles) as f64 / system::gpu::VBLANK_INTERVAL as f64 / secs
+                };
+                #[cfg(feature = "fps")]
+                {
+                    last_frame = std::time::Instant::now();
+                    last_cycles = system.cycles();
+                }
                 if let Some(ref mut w) = winout {
+                    match handle_sdl_events(&mut system, w) {
+                        EventHandlerResult::Quit => break 'running,
+                        EventHandlerResult::Reset => {
+                            system = system_from_args(&rom, &args)?;
+                            next_frame = 0;
+                            next_frame_deadline = std::time::Instant::now();
+                            #[cfg(feature = "fps")]
+                            {
+                                last_frame = std::time::Instant::now();
+                                last_cycles = 0;
+                            }
+                            continue 'running;
+                        },
+                        EventHandlerResult::Continue => {}
+                    }
                     system.render_sdl(&mut w.canvas)?;
                     #[cfg(feature = "fps")]
                     {
-                        let now = std::time::Instant::now();
                         w.canvas.set_draw_color((255, 128, 255));
-                        w.canvas.draw_debug_text(&format!("{:.0} FPS", (now - last_frame).as_secs_f64().recip()), (0, 0))?;
-                        last_frame = now;
+                        w.canvas.draw_debug_text(&format!("{fps:.0} FPS"), (0, 0))?;
                     }
                     w.canvas.present();
                 } else {
                     #[cfg(feature = "fps")]
                     {
-                        let now = std::time::Instant::now();
-                        eprintln!("{:.0} FPS", (now - last_frame).as_secs_f64().recip());
-                        last_frame = now;
+                        eprintln!("{fps:.0} FPS");
                     }
                 }
                 if let Some(remaining) =
@@ -345,19 +354,27 @@ fn main() -> Result<(), Box<dyn Error>> {
                     std::thread::sleep(remaining);
                 }
                 next_frame_deadline += frame_duration;
-                next_frame = system.cycles() + cycles_per_frame;
-                system.interrupt(0x7FF0)?;
-                if args.log_interrupts {
-                    eprintln!(
-                        "{pc:x}: VBLANK interrupt to {:x}",
-                        system.get_regw(WordRegister::PC)
-                    );
-                }
-                continue 'running;
+                next_frame = system.cycles() + args.cycles_per_frame;
             }
             let cycles = system.cycles();
             match system.step() {
-                Ok(opcode) => {
+                Ok(SystemStep::Interrupt(0x7FF0)) => {
+                    if args.log_interrupts {
+                        eprintln!(
+                            "{pc:x}: VBLANK interrupt to {:x}",
+                            system.get_regw(WordRegister::PC)
+                        );
+                    }
+                }
+                Ok(SystemStep::Interrupt(vector)) => {
+                    if args.log_interrupts {
+                        eprintln!(
+                            "{pc:x}: ${vector:x} interrupt to {:x}",
+                            system.get_regw(WordRegister::PC)
+                        );
+                    }
+                }
+                Ok(SystemStep::RanInstruction(opcode)) => {
                     if args.disassembly {
                         eprintln!(
                             "{pc:x}: {:<20} ; {:02x?} ; {} cycles",
