@@ -17,9 +17,32 @@ vblank:
     pop %fl
     reti
 
+memsend:
+    ; %ha = dest
+    ; %bc = src
+    ; %xl = count
+    push %bc
+    push %xl
+    push %n
+    sub %xl, $1
+    jrb __memsend__end
+    __memsend__loop:
+        mov %n, (%bc)
+        mov (%ha), %n
+        inc %bc
+        sub %xl, $1
+        jrnb __memsend__loop
+    __memsend__end:
+    pop %n
+    pop %xl
+    pop %bc
+    ret
+
 terminal_init:
     push %xl
     push %mn
+    push %bc
+    push %ha
     mov %xl, $0x6B00
     zero %mn
     __terminal_init__init_ram:
@@ -27,7 +50,7 @@ terminal_init:
         add %xl, $2
         cmp %xl, $0x7000
         jrl __terminal_init__init_ram
-    mov 0x7F90, %n
+    mov 0x7F90, %mn
     __terminal_init__colors:
         mov %x, %m
         and %x, $0b11100000
@@ -38,38 +61,43 @@ terminal_init:
         mov %l, %m
         and %l, $0b00000011
         shl %l, $3
-        mov 0x7F98, %xl
+        mov 0x7F92, %xl
         inc %m
         jrnz __terminal_init__colors
-    mov %xl, $terminal_charset
-    mov 0x7F91, %n
+    mov %bc, $0x1000
+    mov 0x7F90, %bc
+    mov %ha, $0x7F91
+    mov %bc, $terminal_charset
+    mov %xl, $0x30
     __terminal_init__tileset_nonprint:
-        mov 0x7F99, %xl
+        call memsend
         inc %n
         cmp %n, $" "
         jrb __terminal_init__tileset_nonprint
     __terminal_init__tileset:
-        mov 0x7F99, %xl
-        add %xl, $0x30
-        cmp %xl, $__terminal_charset__end
+        call memsend
+        add %bc, %xl
+        cmp %bc, $__terminal_charset__end
         jrb __terminal_init__tileset
-    mov %n, $0xFF
-    mov 0x7F91, %n
-    mov %xl, $terminal_charset + (0x7F-" ")*0x30
-    mov 0x7F99, %xl
-    mov %n, $0x05
-    mov 0x7F91, %n
-    mov %xl, $terminal_charset + ("_"-" ")*0x30
-    mov 0x7F99, %xl
-    mov 0x6C00, %n
+    mov %bc, $0x1000 + 0x30 * 0xFF
+    mov 0x7F90, %bc
+    mov %bc, $terminal_charset + (0x7F-" ")*0x30
+    call memsend
+    mov %bc, $0x1000 + 0x30 * 0x05
+    mov 0x7F90, %bc
+    mov %bc, $terminal_charset + ("_"-" ")*0x30
+    call memsend
+    mov %bc, $0x200
+    mov 0x7F90, %bc
+    mov %xl, $0x1000
     zero %mn
-    zero %xl
-    mov 0x7F92, %mn
     __terminal_init__tiles:
-        mov 0x7F9A, %xl
+        mov 0x7F92, %xl
         inc %mn
         cmp %mn, $32*32
         jrb __terminal_init__tiles
+    pop %ha
+    pop %bc
     pop %mn
     pop %xl
     ret
@@ -77,21 +105,40 @@ terminal_init:
 terminal_vblank:
     push %xl
     push %mn
-    zero %mn
-    mov 0x7F92, %mn
-    mov %xl, $0x6C00
+    push %bc
+    push %ha
+    mov %mn, $0x200
+    mov 0x7F90, %mn
+    mov %ha, $0x6C00
+    mov %bc, 0x6B00
+    and %bc, $32
+    jrnz __terminal_vblank__no_showcursor
+        mov %bc, 0x6B02
+        add %bc, %ha
+    __terminal_vblank__no_showcursor:
     __terminal_vblank__loop:
-        mov %n, (%xl)
-        mov 0x7F9A, %n
-        inc %xl
-        cmp %xl, $0x7000
+        cmp %ha, %bc
+        jrz __terminal_vblank__cursor
+        zero %m
+        mov %n, (%ha)
+        mov %xl, %mn
+        shl %mn, $4
+        shl %xl, $5
+        add %mn, %xl
+        add %mn, $0x1000
+        __terminal_vblank__cursor_end:
+        mov 0x7F92, %mn
+        inc %ha
+        cmp %ha, $0x7000
         jrb __terminal_vblank__loop
-    mov %xl, 0x6B00
-    inc %xl
-    mov 0x6B00, %xl
+    pop %ha
+    pop %bc
     pop %mn
     pop %xl
     ret
+    __terminal_vblank__cursor:
+        mov %mn, $0x1000 + 0x30*0x05
+        jr __terminal_vblank__cursor_end
 
 terminal_putchar:
     push %xl
@@ -107,8 +154,6 @@ terminal_putchar:
     and %xl, $0x3FF
     mov 0x6B02, %xl
     inc %mn
-    mov %l, $0x05
-    mov (%mn), %l
     pop %mn
     pop %xl
     ret
@@ -121,9 +166,6 @@ __terminal_putchar__backspace:
     dec %xl
     and %xl, $0x3FF
     mov 0x6B02, %xl
-    mov %l, $0x05
-    dec %mn
-    mov (%mn), %l
     pop %mn
     pop %xl
     ret

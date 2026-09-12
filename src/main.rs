@@ -36,6 +36,10 @@ struct Args {
     #[arg(short, long)]
     windowed: bool,
 
+    /// Throttles to the provided FPS.
+    #[arg(long)]
+    fps: Option<u32>,
+
     /// Set the initial value of the %H register.
     #[arg(alias = "%h", long = "%H")]
     reg_h: Option<u8>,
@@ -245,9 +249,6 @@ fn system_from_args(rom: &[u8], args: &Args) -> Result<System, Box<dyn Error>> {
     Ok(system)
 }
 
-const TARGET_FPS: u32 = 60;
-const CYCLES_PER_FRAME: u32 = 2_000_000 / TARGET_FPS;
-
 pub(crate) struct WindowOutput {
     pub(crate) _sdl_context: sdl3::Sdl,
     pub(crate) _video_subsystem: sdl3::VideoSubsystem,
@@ -272,10 +273,7 @@ impl WindowOutput {
                 ..Default::default()
             },
         )?;
-        let mut canvas = window.into_canvas();
-        canvas.set_draw_color((0, 0, 255));
-        canvas.clear();
-        canvas.present();
+        let canvas = window.into_canvas();
         Ok(Self {
             _sdl_context: sdl_context,
             _video_subsystem: video_subsystem,
@@ -288,13 +286,16 @@ impl WindowOutput {
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
+    let target_fps: u32 = args.fps.unwrap_or(60);
+    let cycles_per_frame: u32 = 2_000_000 / 60;
+
     let mut winout = if args.windowed { Some(WindowOutput::new()?) } else { None };
 
     let rom = std::fs::read(args.program_path.clone())?;
     let mut system = system_from_args(&rom, &args)?;
-    let mut next_frame: u32 = CYCLES_PER_FRAME;
-    let frame_duration = std::time::Duration::from_nanos(1_000_000_000 / u64::from(TARGET_FPS));
-    let mut next_frame_deadline = std::time::Instant::now() + frame_duration;
+    let mut next_frame: u32 = 0;
+    let frame_duration = std::time::Duration::from_nanos(1_000_000_000 / u64::from(target_fps));
+    let mut next_frame_deadline = std::time::Instant::now();
     #[cfg(feature = "fps")]
     let mut last_frame = std::time::Instant::now();
 
@@ -309,15 +310,16 @@ fn main() -> Result<(), Box<dyn Error>> {
                 return Err(RamExecution(pc).into());
             }
             if system.cycles() >= next_frame {
-                #[cfg(feature = "fps")]
-                {
-                    let now = std::time::Instant::now();
-                    eprintln!("{:.1} FPS", (now - last_frame).as_secs_f64().recip());
-                    last_frame = now;
-                }
                 if let Some(ref mut w) = winout {
                     system.render_sdl(&mut w.canvas)?;
                     w.canvas.present();
+                    #[cfg(feature = "fps")]
+                    {
+                        let now = std::time::Instant::now();
+                        w.canvas.set_draw_color((255, 128, 255));
+                        w.canvas.draw_debug_text(&format!("{:.0} FPS", (now - last_frame).as_secs_f64().recip()), (0, 0))?;
+                        last_frame = now;
+                    }
                 }
                 if let Some(remaining) =
                     next_frame_deadline.checked_duration_since(std::time::Instant::now())
@@ -325,7 +327,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     std::thread::sleep(remaining);
                 }
                 next_frame_deadline += frame_duration;
-                next_frame = system.cycles() + CYCLES_PER_FRAME;
+                next_frame = system.cycles() + cycles_per_frame;
                 system.interrupt(0x7FF0)?;
                 if args.log_interrupts {
                     eprintln!(
