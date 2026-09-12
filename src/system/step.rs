@@ -380,32 +380,32 @@ impl System {
             MovRIB(dst, imm) => {
                 self.set_regb(dst, imm);
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             MovRIW(dst, imm) => {
                 self.set_regw(dst, imm);
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
 
             MovCcRRB(cc, dst, src) => {
                 if self.condition(cc) {
                     self.set_regb(dst, self.get_regb(src));
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 2);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 2);
                 } else {
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
                 }
             }
             MovCcRRW(cc, dst, src) => {
                 if self.condition(cc) {
                     self.set_regw(dst, self.get_regw(src));
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 2);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 2);
                 } else {
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
                 }
             }
             XchCcRRB(cc, dst, src) => {
@@ -415,10 +415,10 @@ impl System {
                     self.set_regb(dst, b);
                     self.set_regb(src, a);
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 2);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 2);
                 } else {
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
                 }
             }
             XchCcRRW(cc, dst, src) => {
@@ -428,21 +428,21 @@ impl System {
                     self.set_regw(dst, b);
                     self.set_regw(src, a);
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 2);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 2);
                 } else {
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
                 }
             }
 
             MovRAB(dst, addr) => {
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
                 self.set_regb(dst, self.get_memb(addr)?);
             }
             MovRAW(dst, addr) => {
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
                 self.set_regw(dst, self.get_memw(addr)?);
             }
 
@@ -453,10 +453,10 @@ impl System {
                         self.get_memb(self.get_regw(base).wrapping_add_signed(offset.into()))?,
                     );
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 2);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 2);
                 } else {
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
                 }
             }
             MovCcROW(cc, dst, offset, base) => {
@@ -466,10 +466,10 @@ impl System {
                         self.get_memw(self.get_regw(base).wrapping_add_signed(offset.into()))?,
                     );
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 2);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 2);
                 } else {
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
                 }
             }
             LeaCcROB(cc, dst, offset, base) => {
@@ -479,20 +479,20 @@ impl System {
                         self.get_regw(base).wrapping_add_signed(offset.into()) as u8,
                     );
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 2);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 2);
                 } else {
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
                 }
             }
             LeaCcROW(cc, dst, offset, base) => {
                 if self.condition(cc) {
                     self.set_regw(dst, self.get_regw(base).wrapping_add_signed(offset.into()));
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 2);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 2);
                 } else {
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
                 }
             }
 
@@ -500,10 +500,10 @@ impl System {
                 if self.condition(cc) {
                     self.set_regw(PC, addr);
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 2);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 2);
                 } else {
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
                 }
             }
             CallCcA(cc, addr) => {
@@ -513,22 +513,22 @@ impl System {
                     self.set_regw(SP, sp);
                     self.set_regw(PC, addr);
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 2);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 2);
                 } else {
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
                 }
             }
 
             MovARB(addr, src) => {
                 self.set_memb(addr, self.get_regb(src))?;
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             MovARW(addr, src) => {
                 self.set_memw(addr, self.get_regw(src))?;
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
 
             MovCcORB(cc, offset, base, src) => {
@@ -538,10 +538,10 @@ impl System {
                         self.get_regb(src),
                     )?;
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 2);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 2);
                 } else {
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
                 }
             }
             MovCcORW(cc, offset, base, src) => {
@@ -551,10 +551,10 @@ impl System {
                         self.get_regw(src),
                     )?;
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 2);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 2);
                 } else {
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
                 }
             }
 
@@ -562,78 +562,78 @@ impl System {
                 let value = self.alu_binaryb(op, self.get_regb(dst), self.get_regb(src));
                 self.set_regb(dst, value);
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             AlubRRW(op, dst, src) => {
                 let value = self.alu_binaryw(op, self.get_regw(dst), self.get_regw(src));
                 self.set_regw(dst, value);
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             AlubRIB(op, dst, imm) => {
                 let value = self.alu_binaryb(op, self.get_regb(dst), imm);
                 self.set_regb(dst, value);
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             AlubRIW(op, dst, imm) => {
                 let value = self.alu_binaryw(op, self.get_regw(dst), imm);
                 self.set_regw(dst, value);
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             AluuRB(op, dst) => {
                 let value = self.alu_unaryb(op, self.get_regb(dst));
                 self.set_regb(dst, value);
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             AluuRW(op, dst) => {
                 let value = self.alu_unaryw(op, self.get_regw(dst));
                 self.set_regw(dst, value);
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
 
             CpAlubRRB(op, dst, src) => {
                 let _ = self.alu_binaryb(op, self.get_regb(dst), self.get_regb(src));
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             CpAlubRRW(op, dst, src) => {
                 let _ = self.alu_binaryw(op, self.get_regw(dst), self.get_regw(src));
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             CpAlubRIB(op, dst, imm) => {
                 let _ = self.alu_binaryb(op, self.get_regb(dst), imm);
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             CpAlubRIW(op, dst, imm) => {
                 let _ = self.alu_binaryw(op, self.get_regw(dst), imm);
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             CpAluuRB(op, dst) => {
                 let _ = self.alu_unaryb(op, self.get_regb(dst));
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             CpAluuRW(op, dst) => {
                 let _ = self.alu_unaryw(op, self.get_regw(dst));
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
 
             JrCcX(cc, offset) => {
                 if self.condition(cc) {
                     self.set_regw(PC, self.get_regw(PC).wrapping_add_signed(offset.into()));
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 2);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 2);
                 } else {
                     self.cycles
-                        .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                        .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
                 }
             }
 
@@ -642,14 +642,14 @@ impl System {
                 self.set_memb(sp, self.get_regb(src))?;
                 self.set_regw(SP, sp);
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             PushRW(src) => {
                 let sp = self.get_regw(SP).wrapping_sub(2);
                 self.set_memw(sp, self.get_regw(src))?;
                 self.set_regw(SP, sp);
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             PopRB(dst) => {
                 let sp = self.get_regw(SP);
@@ -660,7 +660,7 @@ impl System {
                     self.set_regw(SP, sp.wrapping_add(1));
                 }
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             PopRW(dst) => {
                 let sp = self.get_regw(SP);
@@ -671,18 +671,18 @@ impl System {
                     self.set_regw(SP, sp.wrapping_add(2));
                 }
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
 
             ClbRIB(dst, bit) => {
                 self.set_regb(dst, self.get_regb(dst) & !(1 << (bit & 7)));
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             ClbRIW(dst, bit) => {
                 self.set_regw(dst, self.get_regw(dst) & !(1 << (bit & 15)));
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             ClbRRB(dst, bitreg) => {
                 self.set_regb(
@@ -690,7 +690,7 @@ impl System {
                     self.get_regb(dst) & !(1 << (self.get_regb(bitreg) & 7)),
                 );
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             ClbRRW(dst, bitreg) => {
                 self.set_regw(
@@ -698,23 +698,23 @@ impl System {
                     self.get_regw(dst) & !(1 << (self.get_regb(bitreg) & 15)),
                 );
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
 
             StbRIB(dst, bit) => {
                 self.set_regb(dst, self.get_regb(dst) | (1 << (bit & 7)));
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             StbRIW(dst, bit) => {
                 self.set_regw(dst, self.get_regw(dst) | (1 << (bit & 15)));
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             StbRRB(dst, bitreg) => {
                 self.set_regb(dst, self.get_regb(dst) | (1 << (self.get_regb(bitreg) & 7)));
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             StbRRW(dst, bitreg) => {
                 self.set_regw(
@@ -722,23 +722,23 @@ impl System {
                     self.get_regw(dst) | (1 << (self.get_regb(bitreg) & 15)),
                 );
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
 
             TgbRIB(dst, bit) => {
                 self.set_regb(dst, self.get_regb(dst) ^ (1 << (bit & 7)));
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             TgbRIW(dst, bit) => {
                 self.set_regw(dst, self.get_regw(dst) ^ (1 << (bit & 15)));
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             TgbRRB(dst, bitreg) => {
                 self.set_regb(dst, self.get_regb(dst) ^ (1 << (self.get_regb(bitreg) & 7)));
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             TgbRRW(dst, bitreg) => {
                 self.set_regw(
@@ -746,7 +746,7 @@ impl System {
                     self.get_regw(dst) ^ (1 << (self.get_regb(bitreg) & 15)),
                 );
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
 
             TbitRIB(src, bit) => {
@@ -756,7 +756,7 @@ impl System {
                         | u16::from(self.get_regb(src) & (1 << (bit & 7)) == 0),
                 );
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             TbitRIW(src, bit) => {
                 self.set_regw(
@@ -765,7 +765,7 @@ impl System {
                         | u16::from(self.get_regw(src) & (1 << (bit & 15)) == 0),
                 );
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             TbitRRB(src, bitreg) => {
                 self.set_regw(
@@ -774,7 +774,7 @@ impl System {
                         | u16::from(self.get_regb(src) & (1 << (self.get_regb(bitreg) & 7)) == 0),
                 );
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             TbitRRW(src, bitreg) => {
                 self.set_regw(
@@ -783,12 +783,12 @@ impl System {
                         | u16::from(self.get_regw(src) & (1 << (self.get_regb(bitreg) & 15)) == 0),
                 );
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
 
             Nop => {
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64);
             }
             Reti => {
                 let sp = self.get_regw(SP);
@@ -800,12 +800,12 @@ impl System {
                 }
                 self.active_interrupt = None;
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
             Halt => {
                 self.halt();
                 self.cycles
-                    .update(|cycles| cycles + opcode.to_vec().len() as u32 + 1);
+                    .update(|cycles| cycles + opcode.to_vec().len() as u64 + 1);
             }
         }
         Ok(())

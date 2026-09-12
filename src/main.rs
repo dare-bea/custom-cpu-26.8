@@ -27,7 +27,7 @@ struct Args {
     /// 
     /// This argument does not change V-Blank intervals.
     #[arg(long="cpf", default_value_t=gpu::VBLANK_INTERVAL)]
-    cycles_per_frame: u32,
+    cycles_per_frame: u64,
 
     /// Logs each instruction to stderr.
     #[arg(short, long)]
@@ -304,12 +304,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let rom = std::fs::read(args.program_path.clone())?;
 
     let mut system = system_from_args(&rom, &args)?;
-    let mut next_frame: u32 = 0;
+    let mut next_frame: u64 = 0;
     let mut next_frame_deadline = std::time::Instant::now();
     #[cfg(feature = "fps")]
     let mut last_frame = std::time::Instant::now();
     #[cfg(feature = "fps")]
-    let mut last_cycles: u32 = 0;
+    let mut last_cycles: u64 = 0;
 
     let ret_val = {
         'running: while !system.is_halted() {

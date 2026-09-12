@@ -107,9 +107,9 @@ pub struct System {
     /// The ROM of the system, represented as a boxed slice of bytes.
     rom: Box<[u8]>,
     /// The number of cycles executed by the system.
-    cycles: Cell<u32>,
+    cycles: Cell<u64>,
     /// The number of frames outputted by the system.
-    frames: Cell<u32>,
+    frames: Cell<u64>,
     /// The Video RAM pointer.
     vram_pointer: u16,
     /// The Video RAM, represented as a boxed array of bytes.
@@ -119,7 +119,7 @@ pub struct System {
     /// The active interrupt.
     active_interrupt: Option<u16>,
     /// The next cycle where a vblank interrupt will occur.
-    next_vblank: u32,
+    next_vblank: u64,
 }
 
 impl Default for System {
@@ -247,25 +247,25 @@ impl System {
 
     /// Returns the number of cycles the system has performed.
     #[inline]
-    pub fn cycles(&self) -> u32 {
+    pub fn cycles(&self) -> u64 {
         self.cycles.get()
     }
 
     /// Returns the number of frames the system has outputted.
     #[inline]
-    pub fn frames(&self) -> u32 {
+    pub fn frames(&self) -> u64 {
         self.frames.get()
     }
 
     /// Returns a mutable reference to the number of cycles the system has performed.
     #[inline]
-    pub fn cycles_mut(&mut self) -> &mut u32 {
+    pub fn cycles_mut(&mut self) -> &mut u64 {
         self.cycles.get_mut()
     }
 
     /// Returns a mutable reference to the number of frames the system has outputted.
     #[inline]
-    pub fn frames_mut(&mut self) -> &mut u32 {
+    pub fn frames_mut(&mut self) -> &mut u64 {
         self.frames.get_mut()
     }
 

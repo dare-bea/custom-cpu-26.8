@@ -27,7 +27,7 @@ const RGB_TILE_SIZE: usize = TILE_ROWS * TILE_COLUMNS * RGB_PIXEL_SIZE;
 pub const VRAM_SIZE: usize = 0x10000;
 
 /// The interval at which V-Blanks occur, in cycles.
-pub const VBLANK_INTERVAL: u32 = 2_000_000 / 60;
+pub const VBLANK_INTERVAL: u64 = 2_000_000 / 60;
 
 impl System {
     /// Render the current state of VRAM to an SDL canvas.
