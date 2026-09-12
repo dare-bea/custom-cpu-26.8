@@ -298,7 +298,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let frame_duration = std::time::Duration::from_nanos((1_000_000_000.0 / 60.0 / args.target_speed * (args.cycles_per_frame as f64 / gpu::VBLANK_INTERVAL as f64)) as u64);
-    eprintln!("{frame_duration:?}");
 
     let mut winout = if args.windowed { Some(WindowOutput::new()?) } else { None };
 
