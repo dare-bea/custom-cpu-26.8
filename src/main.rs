@@ -16,9 +16,21 @@ struct Args {
     /// Path to the binary to run.
     program_path: std::path::PathBuf,
 
+    /// Emulate the GPU and output to a window
+    #[arg(short, long)]
+    windowed: bool,
+
+    /// Set the target speed, in frames per second
+    #[arg(long="speed", default_value_t=std::num::NonZero::new(60).unwrap())]
+    target_fps: std::num::NonZero<u32>,
+
     /// Logs each instruction to stderr.
     #[arg(short, long)]
     disassembly: bool,
+
+    /// Logs interrupts to stderr.
+    #[arg(long)]
+    log_interrupts: bool,
 
     /// Halts when attempting to execute an instruction from RAM.
     #[arg(long)]
@@ -27,18 +39,6 @@ struct Args {
     /// Print registers when the program halts.
     #[arg(long)]
     debug_registers: bool,
-
-    /// Logs interrupts to stderr.
-    #[arg(long)]
-    log_interrupts: bool,
-
-    /// Creates an window for visual output.
-    #[arg(short, long)]
-    windowed: bool,
-
-    /// Throttles to the provided FPS.
-    #[arg(long)]
-    fps: Option<u32>,
 
     /// Set the initial value of the %H register.
     #[arg(alias = "%h", long = "%H")]
@@ -286,25 +286,36 @@ impl WindowOutput {
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
-    let target_fps: u32 = args.fps.unwrap_or(60);
+    let target_fps: std::num::NonZero<u32> = args.target_fps;
     let cycles_per_frame: u32 = 2_000_000 / 60;
+    let frame_duration = std::time::Duration::from_nanos(1_000_000_000 / u64::from(target_fps.get()));
 
     let mut winout = if args.windowed { Some(WindowOutput::new()?) } else { None };
 
     let rom = std::fs::read(args.program_path.clone())?;
+
     let mut system = system_from_args(&rom, &args)?;
     let mut next_frame: u32 = 0;
-    let frame_duration = std::time::Duration::from_nanos(1_000_000_000 / u64::from(target_fps));
     let mut next_frame_deadline = std::time::Instant::now();
     #[cfg(feature = "fps")]
     let mut last_frame = std::time::Instant::now();
 
-    let ret_val = (|| {
+    let ret_val = {
         'running: while !system.is_halted() {
-            if let Some(ref mut w) = winout
-                && !handle_sdl_events(&mut system, w) {
-                    break 'running;
+            if let Some(ref mut w) = winout {
+                match handle_sdl_events(&mut system, w) {
+                    EventHandlerResult::Quit => break 'running,
+                    EventHandlerResult::Reset => {
+                        system = system_from_args(&rom, &args)?;
+                        next_frame = 0;
+                        next_frame_deadline = std::time::Instant::now();
+                        #[cfg(feature = "fps")]
+                        {last_frame = std::time::Instant::now()};
+                        continue 'running;
+                    },
+                    EventHandlerResult::Continue => {}
                 }
+            }
             let pc = system.get_regw(WordRegister::PC);
             if args.no_ram_pc && pc < system::PC_START {
                 return Err(RamExecution(pc).into());
@@ -312,12 +323,19 @@ fn main() -> Result<(), Box<dyn Error>> {
             if system.cycles() >= next_frame {
                 if let Some(ref mut w) = winout {
                     system.render_sdl(&mut w.canvas)?;
-                    w.canvas.present();
                     #[cfg(feature = "fps")]
                     {
                         let now = std::time::Instant::now();
                         w.canvas.set_draw_color((255, 128, 255));
                         w.canvas.draw_debug_text(&format!("{:.0} FPS", (now - last_frame).as_secs_f64().recip()), (0, 0))?;
+                        last_frame = now;
+                    }
+                    w.canvas.present();
+                } else {
+                    #[cfg(feature = "fps")]
+                    {
+                        let now = std::time::Instant::now();
+                        eprintln!("{:.0} FPS", (now - last_frame).as_secs_f64().recip());
                         last_frame = now;
                     }
                 }
@@ -364,14 +382,20 @@ fn main() -> Result<(), Box<dyn Error>> {
             // std::thread::sleep(std::time::Duration::from_millis(500));
         }
         Ok(())
-    })();
+    };
     if args.debug_registers {
         print_debug_info(&system);
     }
     ret_val
 }
 
-fn handle_sdl_events(system: &mut System, winout: &mut WindowOutput) -> bool {
+enum EventHandlerResult {
+    Continue,
+    Quit,
+    Reset
+}
+
+fn handle_sdl_events(system: &mut System, winout: &mut WindowOutput) -> EventHandlerResult {
     for event in winout.event_pump.poll_iter() {
         match event {
             Event::Quit { .. }
@@ -379,7 +403,20 @@ fn handle_sdl_events(system: &mut System, winout: &mut WindowOutput) -> bool {
                 keycode: Some(Keycode::Escape),
                 ..
             } => {
-                return false;
+                return EventHandlerResult::Quit;
+            }
+            Event::KeyDown {
+                keycode: Some(Keycode::R),
+                keymod: modifier,
+                ..
+            } if modifier.intersects(
+                if cfg!(target_vendor = "apple") {
+                    sdl3::keyboard::Mod::LGUIMOD | sdl3::keyboard::Mod::RGUIMOD
+                } else {
+                    sdl3::keyboard::Mod::LCTRLMOD | sdl3::keyboard::Mod::RCTRLMOD
+                }
+            ) => {
+                return EventHandlerResult::Reset;
             }
             Event::KeyDown {
                 keycode: Some(Keycode::Return),
@@ -399,7 +436,7 @@ fn handle_sdl_events(system: &mut System, winout: &mut WindowOutput) -> bool {
             _ => {}
         }
     }
-    true
+    EventHandlerResult::Continue
 }
 
 fn print_debug_info(system: &System) {

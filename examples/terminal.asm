@@ -144,7 +144,7 @@ terminal_putchar:
     push %xl
     push %mn
     cmp %h, $0x08
-    jz __terminal_putchar__backspace
+    jrz __terminal_putchar__backspace
     mov %xl, 0x6B02
     mov %mn, $0x6C00
     add %mn, %xl
