@@ -22,9 +22,7 @@ const RGB_PIXEL_SIZE: usize = 3;
 const RGB_TILE_SIZE: usize = TILE_ROWS * TILE_COLUMNS * RGB_PIXEL_SIZE;
 
 /// The size of the Video RAM in bytes.
-pub const VRAM_SIZE: usize = PALETTE_ENTRY_COUNT * 2
-    + TILESET_ENTRY_COUNT * 2
-    + (SCREEN_COLUMNS / TILE_COLUMNS) * (SCREEN_ROWS / TILE_ROWS);
+pub const VRAM_SIZE: usize = 0x10000;
 
 impl System {
     /// Render the current state of VRAM to an SDL canvas.
@@ -36,49 +34,43 @@ impl System {
         &self,
         canvas: &mut sdl3::render::Canvas<sdl3::video::Window>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let palette = self.vram_palette();
-        let tileset_pointers = self.vram_tileset();
-        let tiles = self.vram_tiles();
+        let palette: Box<[u16]> = self.vram()[0x0000..0x0200]
+            .as_chunks::<2>().0.iter()
+            .map(|&x| u16::from_be_bytes(x)).take(256).collect();
+        let tiles: Box<[u16]> = self.vram()[0x0200..0x0200+SCREEN_COLUMNS*SCREEN_ROWS*2]
+            .as_chunks::<2>().0.iter()
+            .map(|&x| u16::from_be_bytes(x)).take(SCREEN_COLUMNS*SCREEN_ROWS).collect();
         let mut pixels =
             vec![0; SCREEN_COLUMNS * TILE_COLUMNS * SCREEN_ROWS * TILE_ROWS * RGB_PIXEL_SIZE];
-        let mut tile_cache: Vec<Option<[u8; RGB_TILE_SIZE]>> =
-            (0..TILESET_ENTRY_COUNT).map(|_| None).collect();
 
         for row in 0..SCREEN_ROWS {
             for col in 0..SCREEN_COLUMNS {
-                let tile_index = tiles[row * SCREEN_COLUMNS + col] as usize;
-                if tile_cache[tile_index].is_none() {
-                    let tile_pointer = tileset_pointers[tile_index];
-                    let mut tile_colors = [0; TILESET_ENTRY_COLORS];
-                    for (index, color) in tile_colors.iter_mut().enumerate() {
-                        let color_index = self.get_memb(tile_pointer.wrapping_add(index as u16))?;
-                        *color = palette[color_index as usize];
-                    }
-                    let mut decoded_tile = [0; RGB_TILE_SIZE];
-                    for tile_row in 0..TILE_ROWS {
-                        for tile_col in 0..TILE_COLUMNS {
-                            let data_offset = TILESET_ENTRY_COLORS as u16
-                                + (tile_row * TILE_COLUMNS + tile_col) as u16 / 2;
-                            let data = self.get_memb(tile_pointer.wrapping_add(data_offset))?;
-                            let color_index = if tile_col % 2 == 0 {
-                                data >> 4
-                            } else {
-                                data & 15
-                            };
-                            let color = tile_colors[color_index as usize];
-                            let pixel = (tile_row * TILE_COLUMNS + tile_col) * RGB_PIXEL_SIZE;
-                            decoded_tile[pixel..pixel + RGB_PIXEL_SIZE].copy_from_slice(&[
-                                ((color >> 11) & 0x1F) as u8 * (255 / 31),
-                                ((color >> 5) & 0x3F) as u8 * (255 / 63),
-                                (color & 0x1F) as u8 * (255 / 31),
-                            ]);
-                        }
-                    }
-                    tile_cache[tile_index] = Some(decoded_tile);
+                let tile_pointer = tiles[row * SCREEN_COLUMNS + col];
+                let mut tile_colors = [0; TILESET_ENTRY_COLORS];
+                for (index, color) in tile_colors.iter_mut().enumerate() {
+                    let color_index: u8 = self.vram()[tile_pointer.wrapping_add(index as u16) as usize];
+                    *color = palette[color_index as usize];
                 }
-                let Some(tile) = tile_cache[tile_index].as_ref() else {
-                    unreachable!("tile was cached")
-                };
+                let mut decoded_tile = [0; RGB_TILE_SIZE];
+                for tile_row in 0..TILE_ROWS {
+                    for tile_col in 0..TILE_COLUMNS {
+                        let data_offset = TILESET_ENTRY_COLORS as u16
+                            + (tile_row * TILE_COLUMNS + tile_col) as u16 / 2;
+                        let data = self.vram()[tile_pointer.wrapping_add(data_offset) as usize];
+                        let color_index = if tile_col % 2 == 0 {
+                            data >> 4
+                        } else {
+                            data & 15
+                        };
+                        let color = tile_colors[color_index as usize];
+                        let pixel = (tile_row * TILE_COLUMNS + tile_col) * RGB_PIXEL_SIZE;
+                        decoded_tile[pixel..pixel + RGB_PIXEL_SIZE].copy_from_slice(&[
+                            ((color >> 11) & 0x1F) as u8 * (255 / 31),
+                            ((color >> 5) & 0x3F) as u8 * (255 / 63),
+                            (color & 0x1F) as u8 * (255 / 31),
+                        ]);
+                    }
+                }
                 for tile_row in 0..TILE_ROWS {
                     let source_start = tile_row * TILE_COLUMNS * RGB_PIXEL_SIZE;
                     let destination_start =
@@ -87,7 +79,7 @@ impl System {
                             * RGB_PIXEL_SIZE;
                     pixels[destination_start..destination_start + TILE_COLUMNS * RGB_PIXEL_SIZE]
                         .copy_from_slice(
-                            &tile[source_start..source_start + TILE_COLUMNS * RGB_PIXEL_SIZE],
+                            &decoded_tile[source_start..source_start + TILE_COLUMNS * RGB_PIXEL_SIZE],
                         );
                 }
             }

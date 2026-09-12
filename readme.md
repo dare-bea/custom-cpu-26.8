@@ -12,12 +12,9 @@ The system uses big-endian values.
     * Getting `$0xFFFF` from standard input indicates EOF.
   * `0x7F81`: Window input
     * Getting `$0xFFFF` from window input indicates no input.
-  * `0x7F90`: Current VRAM Palette Index
-  * `0x7F91`: Current VRAM Tileset Index
-  * `0x7F92`: Current VRAM Tile Index
-  * `0x7F98`: VRAM Palette Entry at Index (advances on write)
-  * `0x7F99`: VRAM Tileset Entry at Index (advances on write)
-  * `0x7F9A`: VRAM Tile at Index (advances on write)
+  * `0x7F90`: VRAM Pointer
+  * `0x7F91`: 8-bit VRAM Access (advances 1 on write)
+  * `0x7F92`: 16-bit VRAM Access (advances 2 on write)
 * `0x7FF0` - `0x7FF1`: V-Blank Interrupt Vector
   * Initalized to `0x0000`. If the vector is zero, no interrupt will occur.
 * `0x7FF2` - `0x7FF3`: Interrupt Vector 1 (Reserved)
@@ -29,6 +26,21 @@ The system uses big-endian values.
 * `0x7FFE`           : Page Select
 * `0x7FFF`           : Reserved
 * `0x8000` - `0xFFFF`: ROM
+
+## VRAM Layout
+
+* `0x0000` - `0x01FF`: Global Palette (256 entries, 2 bytes each)
+  * Palette colors are stored as RGB565 values.
+* `0x0200` - `0x09FF`: Tilemap (32x32 tilemap, 2 bytes each)
+  * The tilemap is stored by columns, then by rows.
+  * Each entry is a pointer to another address in VRAM.
+
+Each tile has the following format:
+* `0x00` - `0x0F`: Tile Palette (16 entries, 1 byte each)
+  * Each entry in a tile palette is an index into the global palette.
+* `0x10` - `0x2F`: Tile Data (8x8 pixels, 4 bits each)
+  * The tile data is stored as indexes into the tile palette, column-wise
+    followed by row-wise. The high nibble of byte 0 is the first pixel.
 
 ## Registers
 

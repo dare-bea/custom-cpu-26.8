@@ -108,19 +108,10 @@ pub struct System {
     cycles: Cell<u32>,
     /// The number of frames outputted by the system.
     frames: Cell<u32>,
-    /// The Video RAM Palette index register.
-    vram_palette_index: u8,
-    /// The Video RAM Tileset index register.
-    vram_tileset_index: u8,
-    /// The Video RAM Tiles index register.
-    vram_tiles_index: u16,
-    /// The Video RAM Palette, represented as a boxed array of 16-bit colors.
-    vram_palette: Box<[u16; gpu::PALETTE_ENTRY_COUNT]>,
-    /// The Video RAM Tileset, represented as a boxed array of 16-bit addresses.
-    vram_tileset: Box<[u16; gpu::TILESET_ENTRY_COUNT]>,
-    /// The Video RAM Tiles, represented as a boxed array of 8-bit tile indices.
-    vram_tiles: Box<[u8; gpu::SCREEN_COLUMNS * gpu::SCREEN_ROWS]>,
-    /// Text input buffer for certain MMIO operations.
+    /// The Video RAM pointer.
+    vram_pointer: u16,
+    /// The Video RAM, represented as a boxed array of bytes.
+    vram: Box<[u8; gpu::VRAM_SIZE]>,
     text_input_buffer: RefCell<VecDeque<u8>>,
     /// The active interrupt.
     active_interrupt: Option<u16>,
@@ -142,12 +133,8 @@ impl Default for System {
             reg_fl: 0,
             reg_pc: PC_START,
             ram: unsafe { Box::<[u8; RAM_SIZE]>::new_zeroed().assume_init() },
-            vram_palette_index: 0,
-            vram_tileset_index: 0,
-            vram_tiles_index: 0,
-            vram_palette: unsafe { Box::<[u16; _]>::new_zeroed().assume_init() },
-            vram_tileset: unsafe { Box::<[u16; _]>::new_zeroed().assume_init() },
-            vram_tiles: unsafe { Box::<[u8; _]>::new_zeroed().assume_init() },
+            vram_pointer: 0,
+            vram: unsafe { Box::<[u8; _]>::new_zeroed().assume_init() },
             rom: Box::<[u8]>::default(),
             cycles: Cell::new(0),
             frames: Cell::new(0),
@@ -275,54 +262,22 @@ impl System {
         self.frames.get_mut()
     }
 
-    /// Returns the current value of the Video RAM Palette index register.
-    pub fn vram_palette_index(&self) -> u8 {
-        self.vram_palette_index
+    /// Returns the current value of the Video RAM pointer.
+    pub fn vram_pointer(&self) -> u16 {
+        self.vram_pointer
     }
-    /// Returns the current value of the Video RAM Tileset index register.
-    pub fn vram_tileset_index(&self) -> u8 {
-        self.vram_tileset_index
-    }
-    /// Returns the current value of the Video RAM Tiles index register.
-    pub fn vram_tiles_index(&self) -> u16 {
-        self.vram_tiles_index
-    }
-    /// Returns a reference to the Video RAM Palette.
-    pub fn vram_palette(&self) -> &[u16; gpu::PALETTE_ENTRY_COUNT] {
-        &self.vram_palette
-    }
-    /// Returns a reference to the Video RAM Tileset.
-    pub fn vram_tileset(&self) -> &[u16; gpu::TILESET_ENTRY_COUNT] {
-        &self.vram_tileset
-    }
-    /// Returns a reference to the Video RAM Tiles.
-    pub fn vram_tiles(&self) -> &[u8; gpu::SCREEN_COLUMNS * gpu::SCREEN_ROWS] {
-        &self.vram_tiles
+    /// Returns a reference to the Video RAM.
+    pub fn vram(&self) -> &[u8; gpu::VRAM_SIZE] {
+        &self.vram
     }
 
-    /// Returns a mutable reference to the Video RAM Palette index register.
-    pub fn vram_palette_index_mut(&mut self) -> &mut u8 {
-        &mut self.vram_palette_index
+    /// Returns a mutable reference to the Video RAM pointer.
+    pub fn vram_pointer_mut(&mut self) -> &mut u16 {
+        &mut self.vram_pointer
     }
-    /// Returns a mutable reference to the Video RAM Tileset index register.
-    pub fn vram_tileset_index_mut(&mut self) -> &mut u8 {
-        &mut self.vram_tileset_index
-    }
-    /// Returns a mutable reference to the Video RAM Tiles index register.
-    pub fn vram_tiles_index_mut(&mut self) -> &mut u16 {
-        &mut self.vram_tiles_index
-    }
-    /// Returns a mutable reference to the Video RAM Palette.
-    pub fn vram_palette_mut(&mut self) -> &mut [u16; gpu::PALETTE_ENTRY_COUNT] {
-        &mut self.vram_palette
-    }
-    /// Returns a mutable reference to the Video RAM Tileset.
-    pub fn vram_tileset_mut(&mut self) -> &mut [u16; gpu::TILESET_ENTRY_COUNT] {
-        &mut self.vram_tileset
-    }
-    /// Returns a mutable reference to the Video RAM Tiles.
-    pub fn vram_tiles_mut(&mut self) -> &mut [u8; gpu::SCREEN_COLUMNS * gpu::SCREEN_ROWS] {
-        &mut self.vram_tiles
+    /// Returns a mutable reference to the Video RAM.
+    pub fn vram_mut(&mut self) -> &mut [u8; gpu::VRAM_SIZE] {
+        &mut self.vram
     }
 
     /// Input text into the system's text input buffer, which can be used for certain MMIO operations.
@@ -444,12 +399,12 @@ impl System {
                     Ok(0xFFFF)
                 }
             }
-            0x7F90 => Ok(self.vram_palette_index().into()),
-            0x7F91 => Ok(self.vram_tileset_index().into()),
-            0x7F92 => Ok(self.vram_tiles_index()),
-            0x7F98 => Ok(self.vram_palette()[self.vram_palette_index() as usize]),
-            0x7F99 => Ok(self.vram_tileset()[self.vram_tileset_index() as usize]),
-            0x7F9A => Ok(self.vram_tiles()[self.vram_tiles_index() as usize].into()),
+            0x7F90 => Ok(self.vram_pointer()),
+            0x7F91 => Ok(self.vram()[self.vram_pointer() as usize].into()),
+            0x7F92 => Ok(u16::from_be_bytes([
+                self.vram()[self.vram_pointer() as usize].into(),
+                self.vram()[self.vram_pointer().wrapping_add(1) as usize].into(),
+            ])),
             _ => Err(MMIOError::NotMMIOAddress),
         }
     }
@@ -457,24 +412,16 @@ impl System {
     fn set_mmio(&mut self, addr: u16, value: u16) -> Result<(), MMIOError> {
         match usize::from(addr) {
             0x7F80 => std::io::stdout().write_all(&[value as u8])?,
-            0x7F90 => *self.vram_palette_index_mut() = value as u8,
-            0x7F91 => *self.vram_tileset_index_mut() = value as u8,
-            0x7F92 => *self.vram_tiles_index_mut() = value,
-            0x7F98 => {
-                let index = self.vram_palette_index() as usize;
-                self.vram_palette_mut()[index] = value;
-                *self.vram_palette_index_mut() = self.vram_palette_index().wrapping_add(1);
+            0x7F90 => *self.vram_pointer_mut() = value,
+            0x7F91 => {
+                let index = self.vram_pointer() as usize;
+                self.vram_mut()[index] = value as u8;
+                *self.vram_pointer_mut() = self.vram_pointer().wrapping_add(1);
             }
-            0x7F99 => {
-                let index = self.vram_tileset_index() as usize;
-                self.vram_tileset_mut()[index] = value;
-                *self.vram_tileset_index_mut() = self.vram_tileset_index().wrapping_add(1);
-            }
-            0x7F9A => {
-                let index = self.vram_tiles_index() as usize;
-                self.vram_tiles_mut()[index] = value as u8;
-                *self.vram_tiles_index_mut() = self.vram_tiles_index().wrapping_add(1)
-                    % (gpu::SCREEN_COLUMNS * gpu::SCREEN_ROWS) as u16;
+            0x7F92 => {
+                let index = self.vram_pointer() as usize;
+                [self.vram_mut()[index], self.vram_mut()[index.wrapping_add(1)]] = value.to_be_bytes();
+                *self.vram_pointer_mut() = self.vram_pointer().wrapping_add(2);
             }
             _ => return Err(MMIOError::NotMMIOAddress),
         }
