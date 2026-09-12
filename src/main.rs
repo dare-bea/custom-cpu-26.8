@@ -15,15 +15,17 @@ struct Args {
     /// Path to the binary to run.
     program_path: std::path::PathBuf,
 
-    /// Emulate the GPU and output to a window
+    /// Emulate the GPU and output to a window.
     #[arg(short, long)]
     windowed: bool,
 
-    /// Set the target speed multiplier
+    /// Set the target speed multiplier.
     #[arg(long="speed", default_value_t=1.0)]
     target_speed: f64,
 
-    /// Set the target speed multiplier
+    /// Set the target number of CPU cycles to be executed per frame.
+    /// 
+    /// This argument does not change V-Blank intervals.
     #[arg(long="cpf", default_value_t=gpu::VBLANK_INTERVAL)]
     cycles_per_frame: u32,
 
@@ -287,9 +289,16 @@ impl WindowOutput {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let args = Args::parse();
+    let args = {
+        let mut args = Args::parse();
+        if args.cycles_per_frame == 0 {
+            args.cycles_per_frame = 1;
+        }
+        args
+    };
 
-    let frame_duration = std::time::Duration::from_nanos((1_000_000_000.0 / 60.0 / args.target_speed * (args.cycles_per_frame/gpu::VBLANK_INTERVAL) as f64) as u64);
+    let frame_duration = std::time::Duration::from_nanos((1_000_000_000.0 / 60.0 / args.target_speed * (args.cycles_per_frame as f64 / gpu::VBLANK_INTERVAL as f64)) as u64);
+    eprintln!("{frame_duration:?}");
 
     let mut winout = if args.windowed { Some(WindowOutput::new()?) } else { None };
 
@@ -300,6 +309,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut next_frame_deadline = std::time::Instant::now();
     #[cfg(feature = "fps")]
     let mut last_frame = std::time::Instant::now();
+    #[cfg(feature = "fps")]
     let mut last_cycles: u32 = 0;
 
     let ret_val = {
